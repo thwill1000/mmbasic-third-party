@@ -36,11 +36,12 @@ Next
 MazeW%=24:MazeH%=24
 ' create array and fill
 Dim Maze$(MazeW%,MazeH%) length 1
-restart:
+restart_game:
 For x% = 0 To MazeW%
- For y% = 0 To MazeH%
-   Maze$(x%, y%) = "#"
- Next :Next
+  For y% = 0 To MazeH%
+    Maze$(x%, y%) = "#"
+  Next
+Next
 'generate random Maze
 generator
 MovDir$=Chr$(146)+Chr$(148)+Chr$(147)+Chr$(149)
@@ -295,7 +296,7 @@ Function show_title$()
       Static POLL_THESE$(2) = ("keys_wasd", "nes_a", "atari_a")
     Case "Colour Maximite 2", "Colour Maximite 2 G2"
       Static POLL_THESE$(2) = ("keys_wasd", "wii_classic_3", "atari_dx")
-    Case "MMBasic For Windows"
+    Case "MMBasic for Windows"
       Static POLL_THESE$(1) = ("keys_wasd", "keys_wasd")
   End Select
   Local ctrl$ = ctrl.poll$(0, POLL_THESE$())
