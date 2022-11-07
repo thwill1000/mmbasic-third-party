@@ -37,7 +37,7 @@ Error "File 'ctrl.ipp' requires transpiling"
 ' Preprocessor flag CTRL_NO_SNES defined
 '!endif
 
-Const ctrl.VERSION = 900  ' 0.9.00
+Const ctrl.VERSION = 900  ' 0.9.0
 
 ' Button values as returned by controller read functions.
 Const ctrl.R      = &h01
@@ -85,13 +85,12 @@ Dim ctrl.key_map%(31 + Mm.Info(Option Base))
 ' reading a single keypress from the input buffer and cannot handle multiple
 ' simultaneous keys or properly handle a key being pressed and not released.
 Sub keys_cursor(x%)
-  If x% >= 0 Then
-    x% =    ctrl.keydown%(32)  * ctrl.A
-    Inc x%, ctrl.keydown%(128) * ctrl.UP
-    Inc x%, ctrl.keydown%(129) * ctrl.DOWN
-    Inc x%, ctrl.keydown%(130) * ctrl.LEFT
-    Inc x%, ctrl.keydown%(131) * ctrl.RIGHT
-  EndIf
+  If x% < 0 Then Exit Sub
+  x% =    ctrl.keydown%(32)  * ctrl.A
+  Inc x%, ctrl.keydown%(128) * ctrl.UP
+  Inc x%, ctrl.keydown%(129) * ctrl.DOWN
+  Inc x%, ctrl.keydown%(130) * ctrl.LEFT
+  Inc x%, ctrl.keydown%(131) * ctrl.RIGHT
 End Sub
 
 '!endif ' CTRL_NO_CURSORS
