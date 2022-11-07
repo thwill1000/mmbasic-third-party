@@ -1,0 +1,201 @@
+'Maze Game by Mart!n Herhaus 2022
+'Init, switch to 16 Col 320x240 Screen
+If MM.Device$="PicoMiteVGA" Then MODE 2:Font 1
+cw%=RGB(white):WallC1%=0:WallC2%=RGB(RED):cP%=RGB(green)
+'Read the XY-Coordinates of the Wall Elements Corners
+Dim Wall%(6,4,2)
+For N%=0 To 5 'Walls
+ For C%=0 To 3 '4 Corners
+   For F%=0 To 1 '2 Coordinates (X,Y)
+     Read Wall%(N%,C%,F%)
+   Next
+ Next
+Next
+MazeW%=24:MazeH%=24
+' create array and fill
+Dim Maze$(MazeW%,MazeH%) length 1
+restart:
+For x% = 0 To MazeW%
+ For y% = 0 To MazeH%
+   Maze$(x%, y%) = "#"
+ Next :Next
+'generate random Maze
+generator
+MovDir$=Chr$(146)+Chr$(148)+Chr$(147)+Chr$(149)
+Map%=0:CLS cw%
+'place Player
+PlrX%=MazeW%-1:PlrY%=MazeH%-1:PD%=3
+'place Exit
+Ex_X%=2:Ex_Y%=0:If Maze$(Ex_X%,1)="#" Then Inc Ex_X%
+Maze$(Ex_X%,Ex_Y%)="E"
+If map% Then Box 243+Ex_X%*3,3+Ex_Y%*3,3,3,,WallC2%,WallC2%
+Colour 0,cw%
+Text 244,98,"D  X  Y"
+Text 244,130,"KEYS:"
+Text 244,140,"W:FORWARD"
+Text 244,150,"A:TURN L."
+Text 244,160,"D:TURN R."
+Text 244,190,"M:SHOW/ "
+Text 244,204," HIDE MAP"
+' --- Game Loop ---
+Do
+ Text 244,110,Mid$(MovDir$,PD%+1,1)+" "+Str$(PlrX%)+" "+Str$(PlrY%)+" "
+ Draw_3D
+ Select Case PD%
+   Case 0:XS%=0 :YS%=-1
+   Case 1:XS%=1 :YS%=0
+   Case 2:XS%=0 :YS%=1
+   Case 3:XS%=-1:YS%=0
+ End Select
+ If map% Then Box 243+PlrX%*3,3+PlrY%*3,3,3,,cp%,cp%
+ Key$=""
+ Do :Key$=Inkey$:Loop While Key$=""
+   Key$=UCase$(Key$)
+   Select Case Key$
+   Case "A"
+     Inc PD%,-1:Inc PD%,4*(PD%=-1)
+   Case "D"
+     Inc PD%:PD%=PD% And 3
+   Case "W"
+     OX%=PlrX%:OY%=PlrY%
+     Inc PlrX%,XS%:Inc PlrY%,YS%
+     If Maze$(PlrX%,PlrY%)="#" Then PlrX%=OX%:PlrY%=OY%
+     If Map% Then Box 243+ox%*3,3+oy%*3,3,3,,cw%,cw%
+     Case "M"
+     Map%=1*(Map%=0)
+     If Map% Then
+       Box 243,3,76,76,,cw%,cw%
+       Show_Maze
+       Box 243+Ex_X%*3,3+Ex_Y%*3,3,3,,255.255
+     Else
+       Box 243,3,76,76,,cw%,cw%
+     EndIf
+ End Select
+ If PlrX%=Ex_X% And PlrY%=Ex_Y% Then Exit
+Loop
+Text 64,50,Chr$(151)+" WELL DONE! "+Chr$(151)
+Text 60,85,"PRESS Q TO QUIT"
+Text 60,105,"OR ANY OTHER KEY"
+Text 60,115," TO TRY ANOTHER"
+Text 64,125,"     MAZE"
+Do :Key$=Inkey$:Loop While Key$=""
+If Key$="q" Then CLS 0:End
+GoTo restart
+'----------------------------
+Sub draw_3d
+ Box 0,0,241,240,,cw%,cw%
+ Select Case PD%
+  Case 0
+    For f%=0 To 5
+      If PlrY%-f%<0 Then Exit For
+      If Maze$(PlrX%-1,PlrY%-f%)="#" Then Draw_Element f%,0,0 Else Draw_Element f%,0,1
+      If Maze$(PlrX%+1,PlrY%-f%)="#" Then Draw_Element f%,1,0 Else Draw_Element f%,1,1
+      If Maze$(PlrX%,PlrY%-f%)="#" Then Draw_Element f%,1,2:Exit For
+    Next f%
+   Case 1
+     For f%=0 To 5
+       If PlrX%+f%>MazeW% Then Exit For
+       If Maze$(PlrX%+f%,PlrY%-1)="#" Then Draw_Element f%,0,0 Else Draw_Element f%,0,1
+       If Maze$(PlrX%+f%,PlrY%+1)="#" Then Draw_Element f%,1,0 Else Draw_Element f%,1,1
+       If Maze$(PlrX%+f%,PlrY%)="#" Then Draw_Element f%,1,2:Exit For
+       Next f%
+   Case 2
+     For f%=0 To 5
+      If PlrY%+f%>MazeH% Then Exit For
+      If Maze$(PlrX%+1,PlrY%+f%)="#" Then Draw_Element f%,0,0 Else Draw_Element f%,0,1
+      If Maze$(PlrX%-1,PlrY%+f%)="#" Then Draw_Element f%,1,0 Else Draw_Element f%,1,1
+      If Maze$(PlrX%,PlrY%+f%)="#" Then Draw_Element f%,1,2:Exit For
+    Next f%
+  Case 3
+    For f%=0 To 5
+      If PlrX%-f%<0 Then Exit For
+      If Maze$(PlrX%-f%,PlrY%+1)="#" Then Draw_Element f%,0,0 Else Draw_Element f%,0,1
+      If Maze$(PlrX%-f%,PlrY%-1)="#" Then Draw_Element f%,1,0 Else Draw_Element f%,1,1
+      If Maze$(PlrX%-f%,PlrY%)="#" Then Draw_Element f%,1,2:Exit For
+    Next f%
+ End Select
+End Sub
+'draw the elements
+Sub Draw_Element nr%,mir%,Gap%
+Local x1%,y1%,x2%,y2%,x3%,y3%,x4%,y4%
+x1%=Wall%(nr%,0,0):y1%=Wall%(nr%,0,1)
+x2%=Wall%(nr%,1,0):y2%=Wall%(nr%,1,1)
+x3%=Wall%(nr%,2,0):y3%=Wall%(nr%,2,1)
+x4%=Wall%(nr%,3,0):y4%=Wall%(nr%,3,1)
+If mir% Then x1%=240-x1%:x2%=240-x2%:x3%=240-x3%:x4%=240-x4%
+WallC1%=RGB(0,64,0):WallC2%=RGB(0,128,0)
+ If Not Gap% Then
+   'Wall
+   Triangle x1%,y1%,x2%,y2%,x4%,y4%,WallC1%,WallC1%
+   Triangle x1%,y1%,x3%,y3%,x4%,y4%,WallC1%,WallC1%
+ ElseIf Gap%=1 Then
+       'Gap
+       Triangle x1%,y3%,x3%,y3%,x4%,y4%,WallC2%,WallC2%
+       Triangle x1%,y4%,x1%,y3%,x4%,y4%,WallC2%,WallC2%
+     Else
+      'Blocker
+       Triangle x1%,y1%,240-x1%,y1%,240-x1%,y2%,WallC2%,WallC2%
+       Triangle x1%,y1%,240-x1%,y2%,x1%,y2%,WallC2%,WallC2%
+     EndIf
+ EndIf
+End Sub
+Sub show_maze
+For y% = 0 To MazeH%
+   For x% = 0 To MazeW%
+       If Maze$(x%,y%)="#" Then Box 243+x%*3,3+y%*3,3,3,,0,0
+   Next x%
+Next y%
+End Sub
+
+' --- 2D Maze generator ---
+' algorithmen based on
+' https://rosettacode.org/wiki/Maze_generation#BASIC256
+' --------------------------
+Sub generator
+ Local done%,i%,CurX%,CurY%,OldX%,OldY%,x%,y%
+ ' initial start location
+ CurX%=Int(Rnd * (MazeW% - 1))
+ CurY%=Int(Rnd * (MazeH% - 1))
+ ' value must be odd
+ If CurX% Mod 2=0 Then Inc CurX%
+ If CurY% Mod 2=0 Then Inc CurY%
+ Maze$(CurX%, CurY%) = " "
+ ' generate maze
+ done%=0
+ Do While done%=0
+     For i% = 0 To 99
+       OldX%=CurX%
+       OldY%=CurY%
+       ' move in random direction
+       Select Case Int(Rnd*4)
+           Case 0
+               If CurX%+2<MazeW% Then Inc CurX%,2
+           Case 1
+               If CurY%+2<MazeH% Then Inc CurY%,2
+           Case 2
+               If CurX%-2>0 Then Inc CurX%,-2
+           Case 3
+               If CurY%-2>0 Then Inc CurY%,-2
+       End Select
+       ' if cell is unvisited then connect it
+       If Maze$(CurX%,CurY%)="#" Then
+           Maze$(CurX%,CurY%)=" "
+           Maze$(Int((CurX%+OldX%)/2),((CurY%+OldY%)/2))=" "
+       EndIf
+   Next i%
+   ' check if all cells are visited
+   done%=1
+   For x%=1 To MazeW%-1 Step 2
+       For y%=1 To MazeH%-1 Step 2
+           If Maze$(x%,y%)="#" Then done%=0
+       Next y%
+   Next x%
+Loop
+End Sub
+' --- WallData ---
+Data 0,0,0,239,10,10,10,229
+Data 11,11,11,228,50,50,50,189
+Data 51,51,51,188,80,80,80,159
+Data 81,81,81,158,100,100,100,139
+Data 101,101,101,138,110,110,110,129
+Data 111,111,111,128,120,120,120,120
