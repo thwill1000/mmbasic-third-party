@@ -129,14 +129,13 @@ WallC1%=RGB(0,64,0):WallC2%=RGB(0,128,0)
    Triangle x1%,y1%,x2%,y2%,x4%,y4%,WallC1%,WallC1%
    Triangle x1%,y1%,x3%,y3%,x4%,y4%,WallC1%,WallC1%
  ElseIf Gap%=1 Then
-       'Gap
-       Triangle x1%,y3%,x3%,y3%,x4%,y4%,WallC2%,WallC2%
-       Triangle x1%,y4%,x1%,y3%,x4%,y4%,WallC2%,WallC2%
-     Else
-      'Blocker
-       Triangle x1%,y1%,240-x1%,y1%,240-x1%,y2%,WallC2%,WallC2%
-       Triangle x1%,y1%,240-x1%,y2%,x1%,y2%,WallC2%,WallC2%
-     EndIf
+   'Gap
+   Triangle x1%,y3%,x3%,y3%,x4%,y4%,WallC2%,WallC2%
+   Triangle x1%,y4%,x1%,y3%,x4%,y4%,WallC2%,WallC2%
+ Else
+   'Blocker
+   Triangle x1%,y1%,240-x1%,y1%,240-x1%,y2%,WallC2%,WallC2%
+   Triangle x1%,y1%,240-x1%,y2%,x1%,y2%,WallC2%,WallC2%
  EndIf
 End Sub
 Sub show_maze
