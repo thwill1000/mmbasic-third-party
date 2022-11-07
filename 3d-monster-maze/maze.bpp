@@ -1,6 +1,28 @@
 'Maze Game by Mart!n Herhaus 2022
 'Init, switch to 16 Col 320x240 Screen
-If MM.Device$="PicoMiteVGA" Then MODE 2:Font 1
+
+#Include "ctrl.ipp"
+
+Option Break 4
+On Key 3, on_exit
+
+Select Case Mm.Device$
+  Case "PicoMiteVGA"
+    Mode 2
+    Font 1
+    FrameBuffer Create
+    FrameBuffer Write F
+  Case "Colour Maximite 2", "Colour Maximite 2 G2", "MMBasic for Windows"
+    Mode 7
+    Font 1
+    Page Write 1
+  Case Else
+    Error "Unsupported device: " + Mm.Device$
+End Select
+
+ctrl.init_keys()
+Dim ctrl$ = show_title$()
+
 cw%=RGB(white):WallC1%=0:WallC2%=RGB(RED):cP%=RGB(green)
 'Read the XY-Coordinates of the Wall Elements Corners
 Dim Wall%(6,4,2)
@@ -22,64 +44,108 @@ For x% = 0 To MazeW%
 'generate random Maze
 generator
 MovDir$=Chr$(146)+Chr$(148)+Chr$(147)+Chr$(149)
-Map%=0:CLS cw%
+show_map%=0:CLS cw%
 'place Player
 PlrX%=MazeW%-1:PlrY%=MazeH%-1:PD%=3
 'place Exit
 Ex_X%=2:Ex_Y%=0:If Maze$(Ex_X%,1)="#" Then Inc Ex_X%
 Maze$(Ex_X%,Ex_Y%)="E"
-If map% Then Box 243+Ex_X%*3,3+Ex_Y%*3,3,3,,WallC2%,WallC2%
-Colour 0,cw%
+If show_map% Then Box 243+Ex_X%*3,3+Ex_Y%*3,3,3,,WallC2%,WallC2%
+
+Colour 0, cw%
 Text 244,98,"D  X  Y"
-Text 244,130,"KEYS:"
-Text 244,140,"W:FORWARD"
-Text 244,150,"A:TURN L."
-Text 244,160,"D:TURN R."
-Text 244,190,"M:SHOW/ "
+Select Case ctrl$
+  Case "nes_a"
+    Text 244,130,"NES PAD"
+  Case "atari_a"
+    Text 244,130,"ATARI JOY"
+  Case "keys_wasd"
+    Text 244,130,"KEYS:"
+    Text 244,140,"W:FORWARD"
+    Text 244,150,"S:BACKWRD"
+    Text 244,160,"A:TURN L."
+    Text 244,170,"D:TURN R."
+End Select
+Text 244,190,"M:SHOW/"
 Text 244,204," HIDE MAP"
+
 ' --- Game Loop ---
+redraw% = 1
 Do
- Text 244,110,Mid$(MovDir$,PD%+1,1)+" "+Str$(PlrX%)+" "+Str$(PlrY%)+" "
- Draw_3D
- Select Case PD%
-   Case 0:XS%=0 :YS%=-1
-   Case 1:XS%=1 :YS%=0
-   Case 2:XS%=0 :YS%=1
-   Case 3:XS%=-1:YS%=0
- End Select
- If map% Then Box 243+PlrX%*3,3+PlrY%*3,3,3,,cp%,cp%
- Key$=""
- Do :Key$=Inkey$:Loop While Key$=""
-   Key$=UCase$(Key$)
-   Select Case Key$
-   Case "A"
-     Inc PD%,-1:Inc PD%,4*(PD%=-1)
-   Case "D"
-     Inc PD%:PD%=PD% And 3
-   Case "W"
-     OX%=PlrX%:OY%=PlrY%
-     Inc PlrX%,XS%:Inc PlrY%,YS%
-     If Maze$(PlrX%,PlrY%)="#" Then PlrX%=OX%:PlrY%=OY%
-     If Map% Then Box 243+ox%*3,3+oy%*3,3,3,,cw%,cw%
-     Case "M"
-     Map%=1*(Map%=0)
-     If Map% Then
-       Box 243,3,76,76,,cw%,cw%
-       Show_Maze
-       Box 243+Ex_X%*3,3+Ex_Y%*3,3,3,,255.255
-     Else
-       Box 243,3,76,76,,cw%,cw%
-     EndIf
- End Select
- If PlrX%=Ex_X% And PlrY%=Ex_Y% Then Exit
+  If redraw% Then
+    Text 244,110,Mid$(MovDir$,PD%+1,1)+" "+Str$(PlrX%,2)+" "+Str$(PlrY%,2)+" "
+    Draw_3D
+    Select Case PD%
+      Case 0:XS%=0 :YS%=-1
+      Case 1:XS%=1 :YS%=0
+      Case 2:XS%=0 :YS%=1
+      Case 3:XS%=-1:YS%=0
+    End Select
+    If show_map% Then Box 243+PlrX%*3,3+PlrY%*3,3,3,,cp%,cp%
+    redraw% = 0
+    If Mm.Device$ = "PicoMiteVGA" Then
+      FrameBuffer Copy F, N, B
+    Else
+      Page Copy 1 To 0, B
+    EndIf
+  EndIf
+
+  ' Wait for user to press key
+  Key% = 0
+  Do While Key% = 0
+    Call ctrl$, Key%
+    If Key% = 0 Then
+      If ctrl.keydown%(Asc("m")) Then Key% = ctrl.SELECT
+    EndIf
+  Loop
+
+  Select Case Key%
+    Case ctrl.LEFT
+      Inc PD%,-1:Inc PD%,4*(PD%=-1)
+      redraw% = 1
+    Case ctrl.RIGHT
+      Inc PD%:PD%=PD% And 3
+      redraw% = 1
+    Case ctrl.UP, ctrl.DOWN
+      OX%=PlrX%:OY%=PlrY%
+      Inc PlrX%, Choice(Key% = ctrl.UP, 1, -1) * XS%
+      Inc PlrY%, Choice(Key% = ctrl.UP, 1, -1) * YS%
+      If Maze$(PlrX%,PlrY%)="#" Then PlrX%=OX%:PlrY%=OY%
+      If show_map% Then Box 243+ox%*3,3+oy%*3,3,3,,cw%,cw%
+      redraw% = 1
+    Case ctrl.SELECT
+      show_map% = Not show_map%
+      If show_map% Then
+        Box 243,3,76,76,,cw%,cw%
+        Show_Maze
+        Box 243+Ex_X%*3,3+Ex_Y%*3,3,3,,255.255
+      Else
+        Box 243,3,76,76,,cw%,cw%
+      EndIf
+      redraw% = 1
+  End Select
+
+  ' Wait for user to release key
+  Do While Key% <> 0 : Call ctrl$, Key% : Loop
+
+  If PlrX%=Ex_X% And PlrY%=Ex_Y% Then Exit
 Loop
+
 Text 64,50,Chr$(151)+" WELL DONE! "+Chr$(151)
 Text 60,85,"PRESS Q TO QUIT"
 Text 60,105,"OR ANY OTHER KEY"
 Text 60,115," TO TRY ANOTHER"
 Text 64,125,"     MAZE"
-Do :Key$=Inkey$:Loop While Key$=""
-If Key$="q" Then CLS 0:End
+If Mm.Device$ = "PicoMiteVGA" Then
+  FrameBuffer Copy F, N, B
+Else
+  Page Copy 1 To 0, B
+EndIf
+ctrl.term_keys()
+ikey$ = ""
+Do While ikey$ = "" : ikey$ = LCase$(Inkey$) : Loop
+If ikey$ = "q" Then CLS 0 : on_exit()
+ctrl.init_keys()
 GoTo restart
 '----------------------------
 Sub draw_3d
@@ -191,6 +257,71 @@ Sub generator
    Next x%
 Loop
 End Sub
+
+Sub on_exit()
+  On Key 3, 0
+  Option Break 3
+  If Mm.Device$ = "PicoMiteVGA" Then
+    FrameBuffer Close F
+  Else
+    Page Write 0
+  EndIf
+  ctrl.term_keys()
+  On Error Ignore
+  Call ctrl$, ctrl.CLOSE
+  On Error Abort
+  End
+End Sub
+
+Function show_title$()
+  Const X_OFFSET% = MM.HRes \ 2
+  Const Y_OFFSET% = MM.VRes \ 2
+
+  Cls
+
+  Text X_OFFSET%, Y_OFFSET% - 15, "3D MAZE", "CM", 1, 2, RGB(Green)
+  Text X_OFFSET%, Y_OFFSET% + 8, "(c) 2022 Martin Herhaus", "CM", 7, 1, RGB(Green)
+  Local text$ = Choice(Mm.Device$ <> "MMBasic for Windows", "Press START, FIRE or SPACE", "Press SPACE")
+  Text X_OFFSET%, Y_OFFSET% + 40, text$, "CM", 1, 1, RGB(White)
+  If Mm.Device$ = "PicoMiteVGA" Then
+    FrameBuffer Copy F, N, B
+  Else
+    Page Copy 1 To 0, B
+  EndIf
+
+  ' Prompt user to select controller.
+  Select Case Mm.Device$
+    Case "PicoMiteVGA"
+      Static POLL_THESE$(2) = ("keys_wasd", "nes_a", "atari_a")
+    Case "Colour Maximite 2", "Colour Maximite 2 G2"
+      Static POLL_THESE$(2) = ("keys_wasd", "wii_classic_3", "atari_dx")
+    Case "MMBasic For Windows"
+      Static POLL_THESE$(1) = ("keys_wasd", "keys_wasd")
+  End Select
+  Local ctrl$ = ctrl.poll$(0, POLL_THESE$())
+  Call ctrl$, ctrl.OPEN
+
+  Cls
+  If Mm.Device$ = "PicoMiteVGA" Then
+    Framebuffer Copy F, N, B
+  Else
+    Page Copy 1 To 0, B
+  EndIf
+
+  show_title$ = ctrl$
+End Function
+
+Sub keys_wasd(x%)
+  If x% >= 0 Then
+    x% =    ctrl.keydown%(32) * ctrl.A
+    Inc x%, ctrl.keydown%(Asc("w")) * ctrl.UP
+    Inc x%, ctrl.keydown%(Asc("s")) * ctrl.DOWN
+    Inc x%, ctrl.keydown%(Asc("a")) * ctrl.LEFT
+    Inc x%, ctrl.keydown%(Asc("d")) * ctrl.RIGHT
+    Inc x%, ctrl.keydown%(Asc("m")) * ctrl.SELECT
+  EndIf
+End Sub
+
 ' --- WallData ---
 Data 0,0,0,239,10,10,10,229
 Data 11,11,11,228,50,50,50,189
