@@ -1,4 +1,4 @@
-' Copyright (c) 2022 Thomas Hugo Williams
+' Copyright (c) 2022-2023 Thomas Hugo Williams
 ' License MIT <https://opensource.org/licenses/MIT>
 '
 ' MMBasic Controller Library
@@ -7,21 +7,21 @@
 Error "File 'ctrl.ipp' requires transpiling"
 '!endif
 '!ifdef PICOMITE
-  '!set CTRL_PLATFORM_SET
+  '!define CTRL_PLATFORM_SET
 ' Preprocessor flag PICOMITE defined
 '!endif
 '!ifdef CMM2
   '!ifdef CTRL_PLATFORM_SET
     '!error "File 'ctrl.ipp' was transpiled with more than one of the CMM2, MMB4L or PICOMITE flags set"
   '!endif
-  '!set CTRL_PLATFORM_SET
+  '!define CTRL_PLATFORM_SET
 ' Preprocessor flag CMM2 defined
 '!endif
 '!ifdef MMB4L
   '!ifdef CTRL_PLATFORM_SET
     '!error "File 'ctrl.ipp' was transpiled with more than one of the CMM2, MMB4L or PICOMITE flags set"
   '!endif
-  '!set CTRL_PLATFORM_SET
+  '!define CTRL_PLATFORM_SET
 ' Preprocessor flag MMB4L defined
 '!endif
 '!ifndef CTRL_PLATFORM_SET
