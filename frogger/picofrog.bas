@@ -9,81 +9,14 @@
 ' should be in you main file.
 ' The graphics and Music are based upon but not the original
 '------
-'
-' developed on PicoMite Version 5.07.05b14
-' would not run in 5.06 or lower due to the use of
+' developed on PicoMite Version 5.07.05RC...
+' runs on PicoMite Version 5.07.06
+' would not run on lower Versions due to the use of
 ' Framebuffer, Layer and Sprites. For this, the Pico also has to run
 ' at 252000 KHz or higher
 '
 'Use OPTION CPUSPEED 252000 or OPTION CPUSPEED 378000
-'----------History so far-------------------------------------
-'todo:
-''# Game logic / Levels
-'diving turtles
-'Gimmics like Fly*, Lady Frog*
-'Opponents like Snake and Aligator
-'
-'* Parts allready Created but no function in the Game jet
-'# WIP
-'--------------------------------------------
-'Changes:
-'V0.5.7
-' Frog dies when
-'  time is up
-'  touching cars or water
-'V0.5.5
-' Added Konami-Style Font
-' Added Scoringsystem:
-' Every forward step(one lane closer to home) scores 10 points
-' Every frog arriving home scores 50 points.
-' 10 points are also awarded per each unused 1/2 second of time
-' when all 5 frogs reach home to end the level the player earns 1,000 points
-' #Guiding a lady frog home or eating a fly scores 200 points each
-' added Timer Bar
-'V0.5.0
-'some cleaning
-'collition detection registers, whats under the Frog
-'Adding the Intro Screen#
-'more Cleaning
-'optimised the Compression Routin for higher efectivity
-'V0.4.0
-'Some Optimisation in Programcode,
-'Compressed SpriteData
-'added Background
-'start working on Collition detection
-
-' V0.3.9
-' Frog Home Detection
-' Music change on events
-' added Frog Home and Fly Sprite
-' enhanced Music routine to individual ADSR envelopes per Music-Chanal
-' V0.3.5
-' Added Sprite-reading for Ladyfrog
-' change the Colornubers in Sprites to default values,
-'   published by  matherp
-'   https://www.thebackshed.com/forum/ViewTopic.php?FID=16&TID=14884
-'
-'V0.3.2 Added Frog Automovement on Water (Lane 1 to 5)
-'V0.3.1
-' PicoGAME board NES Controller added by thwill
-' more Music
-' Player Movement added
-' corrected the Lane scrolling (100%)
-'v0.2.1
-' added Music Tracker routine and first song.
-' enable layer For Spritemoving
-' Defining the Frog Sprite
-'V0.2.0
-' added routine to let appear new Sprites on the Lanes
-' added the sprites for wood and turtles, corrected the
-' Lane scrolling (95%)
-'V0.1.9 (Proof of concept)
-' using Framebuffer
-' changes: Use BILT Command for moving a lanes at once
-'Tick4 Sound voice 1-3 for Music (Working)
-'Tick1 Sound voice 4 for FX (Working)
-'Tick? for scrolling (maybee)
-'------------------------------------------------------------------------------
+'------------------------------------------
 Option BASE 0
 Option DEFAULT NONE
 Option EXPLICIT ON
@@ -131,11 +64,6 @@ Const NES_PULSE! = 0.001 ' 1 micro-second
 
 Dim controller$ ' @thwill
 
-' @thwill
-' When a key is pressed ctrl.on_key() sets the corresponding byte of this
-' 256-byte map to 1. When ctrl.keydown(i%) is called the corresponding
-' byte is read and set to 0. Note that a 256-bit map could be used but would
-' be slower.
 Dim ctrl.key_map%(31)
 
 '--------- prepare the Graphic
@@ -171,7 +99,7 @@ Box 0,0,224,24,,0,0
 For f%=0 To 192 Step 8:Sprite write #29,f%,0: Next f%
 For f%=0 To 192 Step 48:Box f%,0,32,24,,0,0:Sprite write #28,f%,0: Next f%
 start:
-
+'level 1
  Lane$(01)="0WWWWw000WWWw00000WWWWw000WWw000"
  Lane$(02)="0UU000UUU000UUU000UU00U0000UU000"
  Lane$(03)="00WWWWWw000WWWWWw00WWWWw0000WWw0"
@@ -634,7 +562,7 @@ End Sub
 
 Sub Disp
 CLS
- Box 0,0,320,112,,RGB(blue),RGB(blue)
+Box 0,0,320,112,,RGB(blue),RGB(blue)
 Box 0,0,224,8,,COL%(2),COL%(2)
 Box 0,8,8,16,,COL%(2),COL%(2)
 Box 216,8,8,16,,COL%(2),COL%(2)
@@ -747,7 +675,6 @@ Sub read_Sprites
   Sprite read #30,0,120,16,16
   Box 0,120,32,32,,0,0
 
-
 End Sub
 
 '----------Audio subs--------
@@ -832,8 +759,8 @@ Sub ctrl.open(ctrl$)
   Cat open_fn$, "_open"
   On Error Skip 1
   Call open_fn$
-  If Mm.ErrMsg$ <> "" Then
-    If InStr(Mm.ErrMsg$, "Unknown user subroutine") = 0 Then Error Mm.ErrMsg$
+  If MM.ErrMsg$ <> "" Then
+    If Instr(MM.ErrMsg$, "Unknown user subroutine") = 0 Then Error MM.ErrMsg$
   EndIf
 End Sub
 
@@ -843,8 +770,8 @@ Sub ctrl.close(ctrl$)
   Cat close_fn$, "_close"
   On Error Skip 1
   Call close_fn$
-  If Mm.ErrMsg$ <> "" Then
-    If Mm.ErrMsg$ <> "Unknown user subroutine" Then Error Mm.ErrMsg$
+  If MM.ErrMsg$ <> "" Then
+    If MM.ErrMsg$ <> "Unknown user subroutine" Then Error MM.ErrMsg$
   EndIf
 End Sub
 
@@ -864,7 +791,7 @@ Function ctrl.poll$(duration%)
   Local expires% = Choice(duration%, Timer + duration%, &h7FFFFFFFFFFFFFFF)
 
   ' Just check the keyboard if we are not on a PicoMite.
-  If InStr(Mm.Device$, "PicoMite") = 0 Then
+  If Instr(MM.Device$, "PicoMite") = 0 Then
     Do While ctrl.poll$ = "" And Timer < expires%)
       ctrl.poll$ = Choice(keys_cursor%() = ctrl.A%, "keys_cursor%", "")
     Loop
@@ -991,8 +918,10 @@ Function expand$(pxl$)
   Next n%
   expand$=tmp$
 End Function
-
-' Interrupt routine to stop music, close Buffers and restore default Break Key.
+'
+' Interrupt routine to stop music, close Buffers
+' and restore default Break Key.
+'
 Sub on_break
  Play Stop
  Sprite CLOSE all
@@ -1006,7 +935,8 @@ End Sub
 '
 '
 '----------Data Section----------
-' I try to store everything in this File to make it possible to run without an SD Card
+' I try to store everything in this File to make it possible to run
+' without an SD Card
 '
 colors:
 '--Colorscheme accordung to matherp
