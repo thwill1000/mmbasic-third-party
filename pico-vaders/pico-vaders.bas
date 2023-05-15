@@ -1,319 +1,4 @@
-' Transpiled on 07-12-2022 19:41:09
-
-' BEGIN:     #Include "ctrl.ipp" -----------------------------------------------
-' Copyright (c) 2022 Thomas Hugo Williams
-' License MIT <https://opensource.org/licenses/MIT>
-'
-' MMBasic Controller Library
-'
-' Preprocessor flag PICOMITE defined
-' Preprocessor flag CTRL_USE_ON_PS2 defined
-
-Const ctrl.VERSION = 906  ' 0.9.6
-
-' Button values as returned by controller driver subroutines.
-Const ctrl.R      = &h01
-Const ctrl.START  = &h02
-Const ctrl.HOME   = &h04
-Const ctrl.SELECT = &h08
-Const ctrl.L      = &h10
-Const ctrl.DOWN   = &h20
-Const ctrl.RIGHT  = &h40
-Const ctrl.UP     = &h80
-Const ctrl.LEFT   = &h100
-Const ctrl.ZR     = &h200
-Const ctrl.X      = &h400
-Const ctrl.A      = &h800
-Const ctrl.Y      = &h1000
-Const ctrl.B      = &h2000
-Const ctrl.ZL     = &h4000
-
-Const ctrl.OPEN  = -1
-Const ctrl.CLOSE = -2
-Const ctrl.SOFT_CLOSE = -3
-
-' The NES standard specifies a 12 micro-second pulse, but all the controllers
-' I've tested work with 1 micro-second, and possibly less.
-Const ctrl.PULSE = 0.001 ' 1 micro-second
-
-' When a key is down the corresponding byte of this 256-byte map is set,
-' when the key is up then it is unset.
-'
-' Note that when using INKEY$ (as opposed to the CMM2 'KEYDOWN' function or
-' the PicoMiteVGA 'ON PS2' command) to read the keyboard we cannot detect
-' keyup events and instead automatically clear a byte after it is read.
-Dim ctrl.key_map%(31 + Mm.Info(Option Base))
-
-' Map used to convert PS/2 set 2 scan codes to entries in ctrl.key_map%().
-' The scan code first has to be converted into a single byte value,
-' see ctrl.on_ps2().
-Dim ctrl.scan_map%(31)
-
-' Initialises keyboard reading.
-'
-' @param  period%  CMM2 only - interval to read KEYDOWN state, default 40 ms.
-' @param  nbr%     CMM2 only - timer nbr to read KEYDOWN state, default 4.
-Sub ctrl.init_keys(period%, nbr%)
-  ctrl.term_keys()
-  Read Save
-  Restore ctrl.scan_map_data
-  Local i%
-  For i% = Bound(ctrl.scan_map%(), 0) To Bound(ctrl.scan_map%(), 1)
-    Read ctrl.scan_map%(i%)
-  Next
-  Read Restore
-  On Ps2 ctrl.on_ps2()
-End Sub
-
-Sub ctrl.on_ps2()
-  Local ps2% = Mm.Info(PS2)
-  Select Case ps2%
-    Case < &hE000 : Poke Var ctrl.key_map%(), Peek(Var ctrl.scan_map%(), ps2% And &hFF), 1
-    Case < &hF000 : Poke Var ctrl.key_map%(), Peek(Var ctrl.scan_map%(), (ps2% And &hFF) + &h80), 1
-    Case < &hE0F000 : Poke Var ctrl.key_map%(), Peek(Var ctrl.scan_map%(), ps2% And &hFF), 0
-    Case Else : Poke Var ctrl.key_map%(), Peek(Var ctrl.scan_map%(), (ps2% And &hFF) + &h80), 0
-  End Select
-End Sub
-
-' Terminates keyboard reading.
-Sub ctrl.term_keys()
-  On Ps2 0
-  Memory Set Peek(VarAddr ctrl.key_map%()), 0, 256
-  Do While Inkey$ <> "" : Loop
-End Sub
-
-Function ctrl.keydown%(i%)
-  ctrl.keydown% = Peek(Var ctrl.key_map%(), i%)
-End Function
-
-Function ctrl.poll_multiple$(drivers$(), mask%, duration%)
-  Local expires% = Choice(duration%, Timer + duration%, &h7FFFFFFFFFFFFFFF), i%
-  Do
-    For i% = Bound(drivers$(), 0) To Bound(drivers$(), 1)
-      If ctrl.poll_single%(drivers$(i%), mask%) Then
-        ctrl.poll_multiple$ = drivers$(i%)
-        Exit Do
-      EndIf
-    Next
-  Loop While Timer < expires%
-End Function
-
-' Opens, polls (for a maximum of 5ms) and closes a controller.
-'
-' @param  driver$  controller driver function.
-' @param  mask%    bit mask to match against.
-' @return          1 if any of the bits in the mask match what is read from the
-'                  controller, otherwise 0.
-Function ctrl.poll_single%(driver$, mask%)
-  On Error Ignore
-  Call driver$, ctrl.OPEN
-  If Mm.ErrNo = 0 Then
-    Local key%, t% = Timer + 5
-    Do
-      Call driver$, key%
-      If key% And mask% Then
-        ctrl.poll_single% = 1
-        ' Wait for user to release key.
-        Do While key% : Pause 5 : Call driver$, key% : Loop
-        Exit Do
-      EndIf
-    Loop While Timer < t%
-    Call driver$, ctrl.SOFT_CLOSE
-  EndIf
-  On Error Abort
-End Function
-
-' Gets a string representation of bits read from a controller driver.
-'
-' @param  x%  bits returned by driver.
-' @return     string representation.
-Function ctrl.bits_to_string$(x%)
-  Static BUTTONS$(14) = ("R","Start","Home","Select","L","Down","Right","Up","Left","ZR","X","A","Y","B","ZL")
-
-  If x% = 0 Then
-    ctrl.bits_to_string$ = "No buttons down"
-    Exit Function
-  EndIf
-
-  ctrl.bits_to_string$ = Str$(x%) + " = "
-  Local count%, i%, s$
-  For i% = 0 To Bound(BUTTONS$(), 1)
-    If x% And 2^i% Then
-      s$ = BUTTONS$(i%)
-      If count% > 0 Then Cat ctrl.bits_to_string$, ", "
-      Cat ctrl.bits_to_string$, s$
-      Inc count%
-    EndIf
-  Next
-End Function
-
-' Reads the keyboard as if it were a controller.
-'
-' Note that the PicoMite has no KEYDOWN function so we are limited to
-' reading a single keypress from the input buffer and cannot handle multiple
-' simultaneous keys or properly handle a key being pressed and not released.
-Sub keys_cursor(x%)
-  If x% < 0 Then Exit Sub
-  x% =    ctrl.keydown%(32)  * ctrl.A
-  Inc x%, ctrl.keydown%(128) * ctrl.UP
-  Inc x%, ctrl.keydown%(129) * ctrl.DOWN
-  Inc x%, ctrl.keydown%(130) * ctrl.LEFT
-  Inc x%, ctrl.keydown%(131) * ctrl.RIGHT
-End Sub
-
-' Atari joystick on PicoGAME Port A.
-Sub atari_a(x%)
-  Select Case x%
-    Case >= 0
-      x% =    Not Pin(GP14) * ctrl.A
-      Inc x%, Not Pin(GP0)  * ctrl.UP
-      Inc x%, Not Pin(GP1)  * ctrl.DOWN
-      Inc x%, Not Pin(GP2)  * ctrl.LEFT
-      Inc x%, Not Pin(GP3)  * ctrl.RIGHT
-      Exit Sub
-    Case ctrl.OPEN
-      SetPin GP0, DIn : SetPin GP1, DIn : SetPin GP2, DIn : SetPin GP3, DIn : SetPin GP14, DIn
-    Case ctrl.CLOSE, ctrl.SOFT_CLOSE
-      SetPin GP0, Off : SetPin GP1, Off : SetPin GP2, Off : SetPin GP3, Off : SetPin GP14, Off
-  End Select
-End Sub
-
-' Atari joystick on PicoGAME Port B.
-Sub atari_b(x%)
-  Select Case x%
-    Case >= 0
-      x% =    Not Pin(GP15) * ctrl.A
-      Inc x%, Not Pin(GP28) * ctrl.UP
-      Inc x%, Not Pin(GP4)  * ctrl.DOWN
-      Inc x%, Not Pin(GP5)  * ctrl.LEFT
-      Inc x%, Not Pin(GP22) * ctrl.RIGHT
-      Exit Sub
-    Case ctrl.OPEN
-      SetPin GP4, DIn : SetPin GP5, DIn : SetPin GP15, DIn : SetPin GP22, DIn : SetPin GP28, DIn
-    Case ctrl.CLOSE, ctrl.SOFT_CLOSE
-      SetPin GP4, Off : SetPin GP5, Off : SetPin GP15, Off : SetPin GP22, Off : SetPin GP28, Off
-    End Select
-End Sub
-
-' SNES gamepad on PicoGAME Port A.
-'
-'   GP2: Latch, GP3: Clock, GP1: Data
-Sub snes_a(x%)
-  Select Case x%
-    Case >= 0
-      Pulse GP2, ctrl.PULSE
-      x% =    Not Pin(GP1) * ctrl.B      : Pulse GP3, ctrl.PULSE
-      Inc x%, Not Pin(GP1) * ctrl.Y      : Pulse GP3, ctrl.PULSE
-      Inc x%, Not Pin(GP1) * ctrl.SELECT : Pulse GP3, ctrl.PULSE
-      Inc x%, Not Pin(GP1) * ctrl.START  : Pulse GP3, ctrl.PULSE
-      Inc x%, Not Pin(GP1) * ctrl.UP     : Pulse GP3, ctrl.PULSE
-      Inc x%, Not Pin(GP1) * ctrl.DOWN   : Pulse GP3, ctrl.PULSE
-      Inc x%, Not Pin(GP1) * ctrl.LEFT   : Pulse GP3, ctrl.PULSE
-      Inc x%, Not Pin(GP1) * ctrl.RIGHT  : Pulse GP3, ctrl.PULSE
-      Inc x%, Not Pin(GP1) * ctrl.A      : Pulse GP3, ctrl.PULSE
-      Inc x%, Not Pin(GP1) * ctrl.X      : Pulse GP3, ctrl.PULSE
-      Inc x%, Not Pin(GP1) * ctrl.L      : Pulse GP3, ctrl.PULSE
-      Inc x%, Not Pin(GP1) * ctrl.R      : Pulse GP3, ctrl.PULSE
-      Exit Sub
-    Case Else
-      nes_a(x%)
-  End Select
-End Sub
-
-' SNES gamepad on PicoGAME Port B.
-'
-'   GP5: Latch, GP22: Clock, GP4: Data
-Sub snes_b(x%)
-  Select Case x%
-    Case >= 0
-      Pulse GP5, ctrl.PULSE
-      x% =    Not Pin(GP4) * ctrl.B      : Pulse GP22, ctrl.PULSE
-      Inc x%, Not Pin(GP4) * ctrl.Y      : Pulse GP22, ctrl.PULSE
-      Inc x%, Not Pin(GP4) * ctrl.SELECT : Pulse GP22, ctrl.PULSE
-      Inc x%, Not Pin(GP4) * ctrl.START  : Pulse GP22, ctrl.PULSE
-      Inc x%, Not Pin(GP4) * ctrl.UP     : Pulse GP22, ctrl.PULSE
-      Inc x%, Not Pin(GP4) * ctrl.DOWN   : Pulse GP22, ctrl.PULSE
-      Inc x%, Not Pin(GP4) * ctrl.LEFT   : Pulse GP22, ctrl.PULSE
-      Inc x%, Not Pin(GP4) * ctrl.RIGHT  : Pulse GP22, ctrl.PULSE
-      Inc x%, Not Pin(GP4) * ctrl.A      : Pulse GP22, ctrl.PULSE
-      Inc x%, Not Pin(GP4) * ctrl.X      : Pulse GP22, ctrl.PULSE
-      Inc x%, Not Pin(GP4) * ctrl.L      : Pulse GP22, ctrl.PULSE
-      Inc x%, Not Pin(GP4) * ctrl.R      : Pulse GP22, ctrl.PULSE
-      Exit Sub
-    Case Else
-      nes_b(x%)
-  End Select
-End Sub
-
-' Reads port A connected to a NES gamepad.
-'
-' Note that the extra pulse after reading bit 7 (Right) should not be necessary,
-' but in practice some NES clone controllers require it to behave correctly.
-'
-'   GP2: Latch, GP3: Clock, GP1: Data
-Sub nes_a(x%)
-  Select Case x%
-    Case >= 0
-      Pulse GP2, ctrl.PULSE
-      x% =    Not Pin(GP1) * ctrl.A      : Pulse GP3, ctrl.PULSE
-      Inc x%, Not Pin(GP1) * ctrl.B      : Pulse GP3, ctrl.PULSE
-      Inc x%, Not Pin(GP1) * ctrl.SELECT : Pulse GP3, ctrl.PULSE
-      Inc x%, Not Pin(GP1) * ctrl.START  : Pulse GP3, ctrl.PULSE
-      Inc x%, Not Pin(GP1) * ctrl.UP     : Pulse GP3, ctrl.PULSE
-      Inc x%, Not Pin(GP1) * ctrl.DOWN   : Pulse GP3, ctrl.PULSE
-      Inc x%, Not Pin(GP1) * ctrl.LEFT   : Pulse GP3, ctrl.PULSE
-      Inc x%, Not Pin(GP1) * ctrl.RIGHT  : Pulse GP3, ctrl.PULSE
-      Exit Sub
-    Case ctrl.OPEN
-      SetPin GP1, Din : SetPin GP2, Dout : SetPin GP3, Dout
-      Pin(GP2) = 0 : Pin(GP3) = 0
-      nes_a(0) ' Discard the first reading.
-    Case ctrl.CLOSE, ctrl.SOFT_CLOSE
-      SetPin GP1, Off : SetPin GP2, Off : SetPin GP3, Off
-  End Select
-End Sub
-
-' NES gamepad on PicoGAME Port B.
-'
-'   GP5: Latch, GP22: Clock, GP4: Data
-Sub nes_b(x%)
-  Select Case x%
-    Case >= 0
-      Pulse GP5, ctrl.PULSE
-      x% =    Not Pin(GP4) * ctrl.A      : Pulse GP22, ctrl.PULSE
-      Inc x%, Not Pin(GP4) * ctrl.B      : Pulse GP22, ctrl.PULSE
-      Inc x%, Not Pin(GP4) * ctrl.SELECT : Pulse GP22, ctrl.PULSE
-      Inc x%, Not Pin(GP4) * ctrl.START  : Pulse GP22, ctrl.PULSE
-      Inc x%, Not Pin(GP4) * ctrl.UP     : Pulse GP22, ctrl.PULSE
-      Inc x%, Not Pin(GP4) * ctrl.DOWN   : Pulse GP22, ctrl.PULSE
-      Inc x%, Not Pin(GP4) * ctrl.LEFT   : Pulse GP22, ctrl.PULSE
-      Inc x%, Not Pin(GP4) * ctrl.RIGHT  : Pulse GP22, ctrl.PULSE
-      Exit Sub
-    Case ctrl.OPEN
-      SetPin GP4, Din : SetPin GP5, Dout : SetPin GP22, Dout
-      Pin(GP5) = 0 : Pin(GP22) = 0
-      nes_b(0) ' Discard the first reading.
-    Case ctrl.CLOSE, ctrl.SOFT_CLOSE
-      SetPin GP4, Off : SetPin GP5, Off : SetPin GP22, Off
-  End Select
-End Sub
-
-ctrl.scan_map_data:
-
-Data &h9C92919395009900, &h0060099496989A00, &h0031710000008B00, &h00327761737A0000
-Data &h0033346564786300, &h0035727466762000, &h0036796768626E00, &h003837756A6D0000
-Data &h0039306F696B2C00, &h002D703B6C2F2E00, &h00003D5B00270000, &h000023005D0A0000
-Data &h0008000000005C00, &h0000003734003100, &h001B383635322E30, &h0000392A2D332B9B
-Data &h0000000097000000, &h0000000000000000, &h0000000000008B00, &h0000000000000000
-Data &h0000000000000000, &h0000000000000000, &h0000000000000000, &h0000000000000000
-Data &h0000000000000000, &h0000000000000000, &h0000000000000000, &h0000000000000000
-Data &h0000000000000000, &h0000008682008700, &h0000808300817F84, &h0000889D00890000
-' END:       #Include "ctrl.ipp" -----------------------------------------------
-
-' This is the default startup file for new code.
-' It is saved as 'newfile.txt' in the data folder.
-' If you don't want any startup text, just delete the file.
-
+#Include "ctrl.inc"
 
 'PicoVaders
 '-------------------------------------
@@ -326,6 +11,8 @@ Data &h0000000000000000, &h0000008682008700, &h0000808300817F84, &h0000889D00890
 '-----------------Init----------------
 'MODE 2:Font 1
 Font 1
+
+Const ctrl$ = "ctrl.pglcd2"
 
 ' Vars and Arrays
 Dim alien$(3,2) :'3 Alientypes with 2 Animantion states
@@ -395,10 +82,10 @@ Setup_aliens
 'Draw Screen
 CLS
 Box 50,229,220,1,,,grn
-Print @(58,0);"SCORE <1>  HI-SCORE"
-Print @(66,16);:Pscore Score%
-Print @(154,16);:PScore HighScore%
-Print @(46,230);Level%;
+Text 58, 0, "SCORE <1>  HI-SCORE"
+PScore(66, 16, score%)
+PScore(154, 16, HighScore%)
+Text 46,230, Str$(Level%)
 draw_bunkers
 Levelup%=0
 ADth%=0
@@ -451,11 +138,11 @@ If Levelup%=1 Then
 EndIf
 GmOV:
 If gameover%=1 Then
-   Print @(128,100);"PLAYER<1>"
+   Text 128, 100, "PLAYER<1>"
    For f=1 To 10
-   Print @(128,116);"GAME OVER"
+   Text 128, 116, "GAME OVER"
    Pause 600
-   Print @(128,116);"         "
+   Text 128,116, "         "
    Pause 600
    If Inkey$=" " Then Exit For
    Next f
@@ -468,30 +155,30 @@ Sub Intro
 CLS
 Box 0,0,50,240,,0,0:Box 270,0,50,240,,0,0
 Box 50,229,220,1,,,grn
-Print @(146,30) "PLA"
+Text 146, 30, "PLA"
 Text 176, 40, "Y", "I", 1
 Pause 600
-Print @(122,50) "PICOVADERS"
+Text 122, 50, "PICOVADERS"
 Pause 600
-Print @(74,70) "*SCORE ADVANCE TABLE*"
+Text 74, 70, "*SCORE ADVANCE TABLE*"
 Pause 600
 GUI BITMAP 104,88,uf1$,16,8,1,rot,0
-Print @(130,88) "= ? MYSTERY"
+Text 130, 88, "= ? MYSTERY"
 Pause 600
-Print @(130,108) "=30 POINTS"
+Text 130, 108, "=30 POINTS"
 Pause 600
 GUI BITMAP 104,108,alien$(1,1),16,8,1,weiss,0
 Pause 600
-Print @(130,128) "=20 POINTS"
+Text 130, 128, "=20 POINTS"
 Pause 600
 GUI BITMAP 104,128,alien$(2,1),16,8,1,weiss,0
 Pause 600
-Print @(130,148) "=10 POINTS"
+Text 130, 148, "=10 POINTS"
 Pause 600
 GUI BITMAP 104,148,alien$(3,1),16,8,1,weiss,0
-Print @(90,170) "(C) 1978 BY TAITO"
-Print @(82,190) "PICOMITE-VGA VERSION"
-Print @(74,210) "2022 BY MARTIN HERHAUS"
+Text 90, 170, "(C) 1978 BY TAITO"
+Text 82, 190, "PICOMITE-VGA VERSION"
+Text 74, 210, "2022 BY MARTIN HERHAUS"
 Pause 2000
 For f=270 To 178 Step -1
   GUI BITMAP f,30,alien$(1,1+(f Mod 2)),16,8,1,weiss,0
@@ -519,16 +206,16 @@ Next f
 'adaptation for piones handler
 'do
 '  'Do While Inkey$<>" "
-'  Print @(74,210) "  PRESS FIRE TO START   "
+'  Text 74, 210, "  PRESS FIRE TO START   "
 '  Pause 600
-'  Print @(82,210) "                    "
+'  Text 82, 210, "                    "
 '  Pause 600
 '  'Loop
 '  pio read 1,0,5,NES%()
 '  buttn=255-NES%(4)
 'loop until buttn=&h80
 'end of adaptation for piones handler
-  Call "nes_a", ctrl.OPEN
+  Call ctrl$, ctrl.OPEN
 End Sub
 '
 Sub start_ufo
@@ -645,7 +332,7 @@ Sub ufo_x
   If Uxpl%(1) Then
     Inc Uxpl%(3)
     Play tone 900+15*Uxpl%(3),900+15*Uxpl%(3),100
-    If uxpl%(3)=40 Then Print @(42+Uxpl%(2),32) USCR
+    If uxpl%(3)=40 Then PScore(42 + Uxpl%(2), 32, USCR)
     If uxpl%(3)=60 Then
       Box 50+Uxpl%(2),32,32,10,,0,0
       Uxpl%(1)=0
@@ -801,19 +488,23 @@ End Select
 End Function
 
 Sub PRN_SCR
-  Print @(66,16);:Pscore Score%
+  PScore(66, 16, Score%)
   If Score%>HighScore% Then
     Highscore%=Score%
-    Print @(154,16);:PScore HighScore%
+    PScore(154, 16, HighScore%)
   EndIf
 
 End Sub
-Sub PScore wert
-  If wert<1000 Then Print "0";
-  If wert<100 Then Print "0";
-  If Wert<10 Then Print "0";
-  Print Str$(wert);
+
+Sub PScore(x%, y%, score%)
+  Local s$
+  If score%<1000 Then Cat s$, "0"
+  If score%<100 Then Cat s$, "0"
+  If score%<10 Then Cat s$, "0"
+  Cat s$, Str$(score%)
+  Text x%, y%, s$
 End Sub
+
 ' Explode Alien or Bomb
 Sub expl ex,ey,snd
  GUI BITMAP ex,ey,xpl$,16,8,1,gelb,0
@@ -834,7 +525,7 @@ End Sub
 Sub Move_Player
   'adaptations for piones handler
   Local key%
-  Call "nes_a", key%
+  Call ctrl$, key%
 '  pio read 1,0,5,NES%()
 '  buttn=255-NES%(4)
   if key%=0 then exit sub
