@@ -1,29 +1,63 @@
-'Maze Game by Mart!n Herhaus 2022
-'Init, switch to 16 Col 320x240 Screen
+' 3D Maze Game
+' Copyright (c) 2022 Martin Herhaus
+' v0.9.9 - PicoGAME LCD port by Thomas H. Williams
 
-#Include "ctrl.ipp"
+Const VERSION = 909 ' 0.9.9
 
-Option Break 4
-On Key 3, on_exit
+#Include "../splib/system.inc"
 
-Select Case Mm.Device$
-  Case "PicoMiteVGA"
-    Mode 2
-    Font 1
-    FrameBuffer Create
-    FrameBuffer Write F
-  Case "Colour Maximite 2", "Colour Maximite 2 G2", "MMBasic for Windows"
-    Mode 7
-    Font 1
-    Page Write 1
-  Case Else
-    Error "Unsupported device: " + Mm.Device$
-End Select
+'!if defined PICOMITEVGA
+  '!replace { Page Copy 1 To 0 , B } { FrameBuffer Copy F , N , B }
+  '!replace { Page Write 1 } { FrameBuffer Write F }
+  '!replace { Page Write 0 } { FrameBuffer Write N }
+  '!replace { Mode 7 } { Mode 2 : FrameBuffer Create }
+'!elif defined PICOMITE
+  '!replace { Page Copy 1 To 0 , B } { FrameBuffer Copy F , N }
+  '!replace { Page Write 1 } { FrameBuffer Write F }
+  '!replace { Page Write 0 } { FrameBuffer Write N }
+  '!replace { Mode 7 } { FrameBuffer Create }
+'!endif
+
+#Include "../splib/ctrl.inc"
+#Include "../splib/msgbox.inc"
+'!if defined(PGLCD) || defined(PGLCD2)
+#Include "../splib/pglcd.inc"
+'!endif
+
+sys.override_break("on_break")
+
+If sys.is_device%("pmvga") Then
+  Dim CONTROLLERS$(2) = ("keys_wasd", "nes_a", "atari_a")
+ElseIf sys.is_device%("pglcd") Then
+  Dim CONTROLLERS$(1) = ("keys_wasd", "ctrl.pglcd2")
+ElseIf sys.is_device%("pm*", "mmb4w") Then
+  Dim CONTROLLERS$(1) = ("keys_wasd", "keys_wasd")
+ElseIf sys.is_device%("cmm2*") Then
+  Dim CONTROLLERS$(2) = ("keys_wasd", "wii_classic_3", "atari_dx")
+Else
+  Error "Unsupported device: " + Mm.Device$
+EndIf
+
+Const STATE_SHOW_TITLE% = 0
+Const STATE_PLAY_GAME% = 1
+Const STATE_WIN_GAME% = 2
+
+Const MAP_Y% = 37 ' Vertical offset for mini-map.
+
+Dim pd% ' Player direction (N=0,E=1,S=2,W=3)
+Dim redraw%
+Dim tmp_int%
+Dim state%
+
+If sys.is_device%("mmb4w", "cmm2*") Then Option Console Serial
+Mode 7
+Font 1
+Page Write 1
 
 ctrl.init_keys()
 Dim ctrl$ = show_title$()
 
-cw%=RGB(white):WallC1%=0:WallC2%=RGB(RED):cP%=RGB(green)
+WallC1%=0:WallC2%=RGB(RED)
 'Read the XY-Coordinates of the Wall Elements Corners
 Dim Wall%(6,4,2)
 For N%=0 To 5 'Walls
@@ -45,36 +79,46 @@ Next
 'generate random Maze
 generator
 MovDir$=Chr$(146)+Chr$(148)+Chr$(147)+Chr$(149)
-show_map%=0:CLS cw%
-'place Player
-PlrX%=MazeW%-1:PlrY%=MazeH%-1:PD%=3
+show_map%=0
+Cls Rgb(White)
+
+' Place player
+PlrX% = MazeW% - 1
+PlrY% = MazeH% - 1
+For pd% = 0 To 3
+  If Not blocked%(pd%) Then Exit For
+Next
+If pd% = 4 Then Error "Invalid state"
+
 'place Exit
 Ex_X%=2:Ex_Y%=0:If Maze$(Ex_X%,1)="#" Then Inc Ex_X%
 Maze$(Ex_X%,Ex_Y%)="E"
-If show_map% Then Box 243+Ex_X%*3,3+Ex_Y%*3,3,3,,WallC2%,WallC2%
+If show_map% Then Box 243+Ex_X%*3,MAP_Y%+Ex_Y%*3,3,3,,WallC2%,WallC2%
 
-Colour 0, cw%
-Text 244,98,"D  X  Y"
+Colour 0, Rgb(White)
+Text 280, 10, "D  X  Y", CT
 Select Case ctrl$
+  Case "ctrl.pglcd2"
+    Text 280, 164, "GAMEPAD", CT
   Case "nes_a"
-    Text 244,130,"NES PAD"
+    Text 280, 164, "NES PAD", CT
   Case "atari_a"
-    Text 244,130,"ATARI JOY"
+    Text 280, 164, "ATARI JOY", CT
   Case "keys_wasd"
-    Text 244,130,"KEYS:"
-    Text 244,140,"W:FORWARD"
-    Text 244,150,"S:BACKWRD"
-    Text 244,160,"A:TURN L."
-    Text 244,170,"D:TURN R."
+    Text 280, 120, "KEYS:    ", CT
+    Text 280, 131, "W:FORWARD", CT
+    Text 280, 142, "S:BACKWRD", CT
+    Text 280, 153, "A:TURN L.", CT
+    Text 280, 164, "D:TURN R.", CT
 End Select
-Text 244,190,"M:SHOW/"
-Text 244,204," HIDE MAP"
+Text 280, 175, Choice(ctrl$ = "keys_wasd", "M", "B") + ":MAP ON ", CT
 
 ' --- Game Loop ---
+state% = STATE_PLAY_GAME
 redraw% = 1
 Do
   If redraw% Then
-    Text 244,110,Mid$(MovDir$,PD%+1,1)+" "+Str$(PlrX%,2)+" "+Str$(PlrY%,2)+" "
+    Text 280,20," " + Mid$(MovDir$,PD%+1,1)+" "+Str$(PlrX%,2)+" "+Str$(PlrY%,2)+" ",CT
     Draw_3D
     Select Case PD%
       Case 0:XS%=0 :YS%=-1
@@ -82,73 +126,106 @@ Do
       Case 2:XS%=0 :YS%=1
       Case 3:XS%=-1:YS%=0
     End Select
-    If show_map% Then Box 243+PlrX%*3,3+PlrY%*3,3,3,,cp%,cp%
     redraw% = 0
-    If Mm.Device$ = "PicoMiteVGA" Then
-      FrameBuffer Copy F, N, B
-    Else
-      Page Copy 1 To 0, B
-    EndIf
+    Page Copy 1 To 0, B
   EndIf
 
   ' Wait for user to press key
   Key% = 0
   Do While Key% = 0
     Call ctrl$, Key%
-    If Key% = 0 Then
-      If ctrl.keydown%(Asc("m")) Then Key% = ctrl.SELECT
-    EndIf
     If Key% = OldKey% Then Key% = 0 Else OldKey% = Key%  ' Don't auto-repeat.
+
+    If show_map% Then
+      ' Show player location on map with pulsing red dot.
+      Page Write 0
+      tmp_int% = Choice((Timer Mod 1000) < 500, Rgb(Red), Rgb(White))
+      Box 243 + PlrX% * 3, MAP_Y% + PlrY% * 3, 3, 3, , tmp_int%, tmp_int%
+      Page Write 1
+    EndIf
   Loop
 
   Select Case Key%
     Case ctrl.LEFT
-      Inc PD%,-1:Inc PD%,4*(PD%=-1)
+      pd% = Choice(pd% = 0, 3, pd% - 1)
       redraw% = 1
     Case ctrl.RIGHT
-      Inc PD%:PD%=PD% And 3
+      pd% = Choice(pd% = 3, 0, pd% + 1)
       redraw% = 1
     Case ctrl.UP, ctrl.DOWN
       OX%=PlrX%:OY%=PlrY%
       Inc PlrX%, Choice(Key% = ctrl.UP, 1, -1) * XS%
       Inc PlrY%, Choice(Key% = ctrl.UP, 1, -1) * YS%
-      If Maze$(PlrX%,PlrY%)="#" Then PlrX%=OX%:PlrY%=OY%
-      If show_map% Then Box 243+ox%*3,3+oy%*3,3,3,,cw%,cw%
+      If Maze$(PlrX%,PlrY%)="#" Then
+        PlrX%=OX%:PlrY%=OY%
+        msgbox.beep(0)
+      EndIf
+      If show_map% Then Box 243 + ox% * 3, MAP_Y% + oy% * 3, 3, 3, ,Rgb(White), Rgb(White)
       redraw% = 1
-    Case ctrl.SELECT
+    Case ctrl.B
       show_map% = Not show_map%
       If show_map% Then
-        Box 243,3,76,76,,cw%,cw%
+        Box 243, MAP_Y%, 76, 76, , Rgb(White), Rgb(White)
         Show_Maze
-        Box 243+Ex_X%*3,3+Ex_Y%*3,3,3,,255.255
+        Box 243+Ex_X%*3,MAP_Y%+Ex_Y%*3,3,3,,255.255
+        Text 280, 175, Choice(ctrl$ = "keys_wasd", "M", "B") + ":MAP OFF", CT
       Else
-        Box 243,3,76,76,,cw%,cw%
+        Box 243, MAP_Y%, 76, 76, , Rgb(White), Rgb(White)
+        Text 280, 175, Choice(ctrl$ = "keys_wasd", "M", "B") + ":MAP ON ", CT
       EndIf
+      redraw% = 1
+    Case ctrl.SELECT
+      on_select()
+      redraw% = 1
+    case ctrl.SELECT Or ctrl.START
+      ' Jump to the exit
+      PlrX% = Ex_X% : PlrY% = Ex_Y% + 1 : pd% = 0
       redraw% = 1
   End Select
 
-  If PlrX%=Ex_X% And PlrY%=Ex_Y% Then Exit
+  If PlrX%=Ex_X% And PlrY%=Ex_Y% Then Exit Do
 Loop
 
-Text 64,50,Chr$(151)+" WELL DONE! "+Chr$(151)
-Text 60,85,"PRESS Q TO QUIT"
-Text 60,105,"OR ANY OTHER KEY"
-Text 60,115," TO TRY ANOTHER"
-Text 64,125,"     MAZE"
-If Mm.Device$ = "PicoMiteVGA" Then
-  FrameBuffer Copy F, N, B
-Else
-  Page Copy 1 To 0, B
-EndIf
-ctrl.term_keys()
-ikey$ = ""
-Do While ikey$ = "" : ikey$ = LCase$(Inkey$) : Loop
-If ikey$ = "q" Then CLS 0 : on_exit()
-ctrl.init_keys()
+win_game()
 GoTo restart_game
+
+Function blocked%(direction%)
+  Local x% = PlrX%, y% = PlrY%
+  Select Case direction%
+    Case 0 : Inc y%, -1
+    Case 1 : Inc x%, 1
+    Case 2 : Inc y%, 1
+    Case 3 : Inc x%, -1
+  End Select
+  blocked% = Maze$(x%, y%) = "#"
+End Function
+
+Sub on_select()
+  msgbox.beep(1)
+  Local buttons$(1) Length 3 = ("Yes", "No")
+  Const msg$ = "Quit game?"
+  Select Case state%
+    Case STATE_SHOW_TITLE
+      Const x% = 9, y% = 5, fg% = Rgb(White), bg% = Rgb(Black), frame% = Rgb(Green)
+    Case Else
+      Const x% = 4, y% = 5, fg% = Rgb(Black), bg% = Rgb(White), frame% = -1
+  End Select
+
+  ' Store the current screen (rather than redraw it).
+  Local buf%(4799), pbuf% = Peek(VarAddr buf%()) ' 38400 bytes
+  Memory Copy Mm.Info(WriteBuff), pbuf%, 38400
+
+  Const answer% = msgbox.show%(x%, y%, 22, 9, msg$, buttons$(), 1, ctrl$, fg%, bg%, frame%)
+  If buttons$(answer%) = "Yes" Then end_program()
+
+  ' Restore the current screen.
+  Memory Copy pbuf%, Mm.Info(WriteBuff), 38400
+  Page Copy 1 To 0, B
+End Sub
+
 '----------------------------
 Sub draw_3d
- Box 0,0,241,240,,cw%,cw%
+ Box 0, 0, 241, 240, , Rgb(White), Rgb(White)
  Select Case PD%
   Case 0
     For f%=0 To 5
@@ -203,12 +280,13 @@ WallC1%=RGB(0,64,0):WallC2%=RGB(0,128,0)
    Triangle x1%,y1%,240-x1%,y2%,x1%,y2%,WallC2%,WallC2%
  EndIf
 End Sub
-Sub show_maze
-For y% = 0 To MazeH%
-   For x% = 0 To MazeW%
-       If Maze$(x%,y%)="#" Then Box 243+x%*3,3+y%*3,3,3,,0,0
-   Next x%
-Next y%
+
+Sub show_maze()
+  For y% = 0 To MazeH%
+    For x% = 0 To MazeW%
+      If Maze$(x%,y%)="#" Then Box 243+x%*3,MAP_Y%+y%*3,3,3,,0,0
+    Next
+  Next
 End Sub
 
 ' --- 2D Maze generator ---
@@ -257,19 +335,24 @@ Sub generator
 Loop
 End Sub
 
-Sub on_exit()
-  On Key 3, 0
-  Option Break 3
-  If Mm.Device$ = "PicoMiteVGA" Then
-    FrameBuffer Close F
+Sub on_break()
+  end_program(1)
+End Sub
+
+Sub end_program(break%)
+  If sys.is_device%("pglcd") Then
+    pglcd.end(break%)
   Else
     Page Write 0
+    Colour Rgb(White), Rgb(Black)
+    Cls
+    sys.restore_break()
+    ctrl.term_keys()
+    On Error Ignore
+    Call ctrl$, ctrl.CLOSE
+    On Error Abort
+    End
   EndIf
-  ctrl.term_keys()
-  On Error Ignore
-  Call ctrl$, ctrl.CLOSE
-  On Error Abort
-  End
 End Sub
 
 Function show_title$()
@@ -277,36 +360,32 @@ Function show_title$()
   Const Y_OFFSET% = MM.VRes \ 2
 
   Cls
-
   Text X_OFFSET%, Y_OFFSET% - 15, "3D MAZE", "CM", 1, 2, RGB(Green)
   Text X_OFFSET%, Y_OFFSET% + 8, "(c) 2022 Martin Herhaus", "CM", 7, 1, RGB(Green)
-  Local text$ = Choice(Mm.Device$ <> "MMBasic for Windows", "Press START, FIRE or SPACE", "Press SPACE")
-  Text X_OFFSET%, Y_OFFSET% + 40, text$, "CM", 1, 1, RGB(White)
-  If Mm.Device$ = "PicoMiteVGA" Then
-    FrameBuffer Copy F, N, B
+  If sys.is_device%("pglcd") Then
+    Const txt$ = "Press START"
+  ElseIf sys.is_device%("cmm2*", "pmvga")
+    Const txt$ = "Press START, FIRE or SPACE"
   Else
-    Page Copy 1 To 0, B
+    Const txt$ = "Press SPACE"
   EndIf
+  Text X_OFFSET%, Y_OFFSET% + 40, txt$, "CM", 1, 1, RGB(White)
+  Page Copy 1 To 0, B
 
   ' Prompt user to select controller.
-  Select Case Mm.Device$
-    Case "PicoMiteVGA"
-      Static POLL_THESE$(2) = ("keys_wasd", "nes_a", "atari_a")
-    Case "Colour Maximite 2", "Colour Maximite 2 G2"
-      Static POLL_THESE$(2) = ("keys_wasd", "wii_classic_3", "atari_dx")
-    Case "MMBasic for Windows"
-      Static POLL_THESE$(1) = ("keys_wasd", "keys_wasd")
-  End Select
-  Local ctrl$ = ctrl.poll$(0, POLL_THESE$())
+  Local key%
+  Do
+    ctrl$ = ctrl.poll_multiple$(CONTROLLERS$(), ctrl.A Or ctrl.START Or ctrl.SELECT, 100, key%)
+    If key% And ctrl.SELECT Then
+      Call ctrl$, ctrl.OPEN
+      on_select()
+      Call ctrl$, ctrl.CLOSE
+      key% = 0
+    EndIf
+  Loop While Not key%
   Call ctrl$, ctrl.OPEN
 
-  Cls
-  If Mm.Device$ = "PicoMiteVGA" Then
-    Framebuffer Copy F, N, B
-  Else
-    Page Copy 1 To 0, B
-  EndIf
-
+  msgbox.beep(1)
   show_title$ = ctrl$
 End Function
 
@@ -317,13 +396,26 @@ Sub keys_wasd(x%)
   Inc x%, (ctrl.keydown%(Asc("s")) Or ctrl.keydown%(129)) * ctrl.DOWN
   Inc x%, (ctrl.keydown%(Asc("a")) Or ctrl.keydown%(130)) * ctrl.LEFT
   Inc x%, (ctrl.keydown%(Asc("d")) Or ctrl.keydown%(131)) * ctrl.RIGHT
-  Inc x%, ctrl.keydown%(Asc("m")) * ctrl.SELECT
+  Inc x%, ctrl.keydown%(Asc("m")) * ctrl.B
+  Inc x%, ctrl.keydown%(Asc("q")) * ctrl.SELECT
 End Sub
 
-  Inc x%, ctrl.keydown%(128) * ctrl.UP
-  Inc x%, ctrl.keydown%(129) * ctrl.DOWN
-  Inc x%, ctrl.keydown%(130) * ctrl.LEFT
-  Inc x%, ctrl.keydown%(131) * ctrl.RIGHT
+Sub win_game()
+  Text 64, 70, Chr$(&h97) + " WELL DONE! " + Chr$(&h97)
+  Text 120, 105, "Press " + Choice(ctrl$ = "keys_wasd", "'Q'", "SELECT") , CM
+  Text 120, 120, "to quit,", CM
+  Text 120, 135, "or " + Choice(ctrl$ = "keys_wasd", "SPACE", "START") + " to try", CM
+  Text 120, 150, "another maze", CM
+  Page Copy 1 To 0, B
+
+  Local key% = 1
+  Do While key% : Pause 5 : Call ctrl$, key% : Loop
+  Do
+    Call ctrl$, key%
+    If key% = ctrl.SELECT Then end_program()
+    If key% = ctrl.A Then key% = ctrl.START
+  Loop Until key% = ctrl.START
+End Sub
 
 ' --- WallData ---
 Data 0,0,0,239,10,10,10,229
