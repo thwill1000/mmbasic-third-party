@@ -5,13 +5,13 @@
 ' Concept based on the Game Space Invaders
 ' (c) 1978 by Tomohiro Nishikado of Taito
 '
-' PicoGAME LCD port by Thomas H. Williams
+' GameMite port by Thomas H. Williams
 
 Option Base 0
 Option Default None
 Option Explicit On
 
-Const VERSION = 910 ' 0.9.10
+Const VERSION = 911 ' 0.9.11
 
 #Include "../splib/system.inc"
 
@@ -289,7 +289,7 @@ Sub intro()
   If sys.is_device%("pm*") Then Font 7
   Text 160, y%, "(C) 1978 BY TAITO", CT
   Inc y%, Mm.Info(FontHeight) + 1
-  Text 160, y%, "PICOMITE-" + Choice(sys.is_device%("pglcd"), "LCD", "VGA") + " VERSION", CT
+  Text 160, y%, Choice(sys.is_device%("pglcd"), "GAMEMITE", "PICOMITE-VGA") + " VERSION", CT
   Inc y%, Mm.Info(FontHeight) + 1
   Text 160, y%, "2022 BY MARTIN HERHAUS", CT
   Font 1

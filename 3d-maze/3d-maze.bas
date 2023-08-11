@@ -1,8 +1,8 @@
 ' 3D Maze Game
 ' Copyright (c) 2022-2023 Martin Herhaus
-' PicoGAME LCD port by Thomas H. Williams
+' GameMite port by Thomas H. Williams
 
-Const VERSION = 910 ' 0.9.10
+Const VERSION = 911 ' 0.9.11
 
 #Include "../splib/system.inc"
 
@@ -358,7 +358,7 @@ End Sub
 
 Function show_title$()
   If sys.is_device%("pglcd") Then
-    Const platform$ = "PicoGAME LCD"
+    Const platform$ = "GameMite"
     Const txt$ = "Press START"
   ElseIf sys.is_device%("pm") Then
     Const platform$ = "PicoMite"
