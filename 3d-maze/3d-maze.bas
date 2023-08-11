@@ -1,8 +1,8 @@
 ' 3D Maze Game
-' Copyright (c) 2022 Martin Herhaus
-' v0.9.9 - PicoGAME LCD port by Thomas H. Williams
+' Copyright (c) 2022-2023 Martin Herhaus
+' PicoGAME LCD port by Thomas H. Williams
 
-Const VERSION = 909 ' 0.9.9
+Const VERSION = 910 ' 0.9.10
 
 #Include "../splib/system.inc"
 
@@ -19,6 +19,7 @@ Const VERSION = 909 ' 0.9.9
 '!endif
 
 #Include "../splib/ctrl.inc"
+#Include "../splib/string.inc"
 #Include "../splib/msgbox.inc"
 '!if defined(PGLCD) || defined(PGLCD2)
 #Include "../splib/pglcd.inc"
@@ -356,20 +357,28 @@ Sub end_program(break%)
 End Sub
 
 Function show_title$()
+  If sys.is_device%("pglcd") Then
+    Const platform$ = "PicoGAME LCD"
+    Const txt$ = "Press START"
+  ElseIf sys.is_device%("pm") Then
+    Const platform$ = "PicoMite"
+    Const txt$ = "Press SPACE"
+  ElseIf sys.is_device%("pmvga") Then
+    Const platform$ = "PicoGAME VGA"
+    Const txt$ = "Press START, FIRE or SPACE"
+  Else
+    Const platform$ = "Colour Maximite 2"
+    Const txt$ = "Press START, FIRE or SPACE"
+  EndIf
+
   Const X_OFFSET% = MM.HRes \ 2
   Const Y_OFFSET% = MM.VRes \ 2
 
   Cls
-  Text X_OFFSET%, Y_OFFSET% - 15, "3D MAZE", "CM", 1, 2, RGB(Green)
-  Text X_OFFSET%, Y_OFFSET% + 8, "(c) 2022 Martin Herhaus", "CM", 7, 1, RGB(Green)
-  If sys.is_device%("pglcd") Then
-    Const txt$ = "Press START"
-  ElseIf sys.is_device%("cmm2*", "pmvga")
-    Const txt$ = "Press START, FIRE or SPACE"
-  Else
-    Const txt$ = "Press SPACE"
-  EndIf
-  Text X_OFFSET%, Y_OFFSET% + 40, txt$, "CM", 1, 1, RGB(White)
+  Text X_OFFSET%, Y_OFFSET% - 27, "3D MAZE", "CM", 1, 2, RGB(White)
+  Text X_OFFSET%, Y_OFFSET% - 2, platform$ + " Version", "CM", 7, 1, Rgb(Green)
+  Text X_OFFSET%, Y_OFFSET% + 10, "(c) 2022-2023 Martin Herhaus", "CM", 7, 1, RGB(Green)
+  Text X_OFFSET%, Y_OFFSET% + 30, txt$, "CM", 1, 1, RGB(White)
   Page Copy 1 To 0, B
 
   ' Prompt user to select controller.
