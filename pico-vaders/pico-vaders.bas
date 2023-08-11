@@ -1,18 +1,17 @@
 ' PicoVaders
 '
-' Copyright (c) 2022 Martin Herhaus
+' Copyright (c) 2022-2023 Martin Herhaus
 '
 ' Concept based on the Game Space Invaders
 ' (c) 1978 by Tomohiro Nishikado of Taito
 '
-' v0.9.8 - original version by Martin Herhaus
-' v0.9.9 - PicoGAME LCD port by Thomas H. Williams
+' PicoGAME LCD port by Thomas H. Williams
 
 Option Base 0
 Option Default None
 Option Explicit On
 
-Const VERSION = 909 ' 0.9.9
+Const VERSION = 910 ' 0.9.10
 
 #Include "../splib/system.inc"
 
@@ -31,6 +30,7 @@ Const VERSION = 909 ' 0.9.9
 '!endif
 
 #Include "../splib/ctrl.inc"
+#Include "../splib/string.inc"
 #Include "../splib/msgbox.inc"
 '!if defined(PGLCD) || defined(PGLCD2)
 #Include "../splib/pglcd.inc"
@@ -232,16 +232,19 @@ Sub write_high_score()
   Close #1
 End Sub
 
-' Removes any alien bombs.
+' Removes any alien and player bombs/bullets.
 Sub clear_bombs()
   Local i%
   For i% = 1 To 10
     If a_bomb%(i%, 3) Then
-      Line 50 + a_bomb%(i%, 1), a_bomb%(i%, 2), 50 + a_bomb%(i%, 1), a_bomb%(i%, 2) + 4, , 0
+      Line 50 + a_bomb%(i%, 1), a_bomb%(i%, 2), 50 + a_bomb%(i%, 1), a_bomb%(i%, 2) + 4, , Rgb(Black)
     EndIf
     a_bomb%(i%, 3) = 0
   Next
   bombs_out% = 0
+
+  If ba% Then Line 50 + bx%, by%, 50 + bx%, by% + 4, , Rgb(Black)
+  ba% = 0
 End Sub
 
 ' Shows intro screen.
@@ -331,7 +334,7 @@ End Function
 ' controller by pressing A or START.
 Function poll_ctrl%(duration%)
   Local d% = duration%
-  Do While d% >= 0
+  Do While d% > 0 Or duration% = 0
     ctrl$ = ctrl.poll_multiple$(CONTROLLERS$(), ctrl.A Or ctrl.START Or ctrl.SELECT, d%, poll_ctrl%)
     If poll_ctrl% <> ctrl.SELECT Then Exit Do
     Call ctrl$, ctrl.OPEN
