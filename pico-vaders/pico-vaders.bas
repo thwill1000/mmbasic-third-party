@@ -41,7 +41,7 @@ sys.override_break("on_break")
 If sys.is_device%("pmvga") Then
   Dim CONTROLLERS$(2) = ("keyboard", "nes_a", "atari_a")
 ElseIf sys.is_device%("pglcd") Then
-  Dim CONTROLLERS$(1) = ("keyboard", "ctrl.pglcd2")
+  Dim CONTROLLERS$(1) = ("keyboard", "ctrl.gamemite")
 ElseIf sys.is_device%("pm*", "mmb4w") Then
   Dim CONTROLLERS$(1) = ("keyboard", "keyboard")
 ElseIf sys.is_device%("cmm2*") Then

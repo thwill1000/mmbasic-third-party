@@ -30,7 +30,7 @@ sys.override_break("on_break")
 If sys.is_device%("pmvga") Then
   Dim CONTROLLERS$(2) = ("keys_wasd", "nes_a", "atari_a")
 ElseIf sys.is_device%("pglcd") Then
-  Dim CONTROLLERS$(1) = ("keys_wasd", "ctrl.pglcd2")
+  Dim CONTROLLERS$(1) = ("keys_wasd", "ctrl.gamemite")
 ElseIf sys.is_device%("pm*", "mmb4w") Then
   Dim CONTROLLERS$(1) = ("keys_wasd", "keys_wasd")
 ElseIf sys.is_device%("cmm2*") Then
@@ -99,7 +99,7 @@ If show_map% Then Box 243+Ex_X%*3,MAP_Y%+Ex_Y%*3,3,3,,WallC2%,WallC2%
 Colour 0, Rgb(White)
 Text 280, 10, "D  X  Y", CT
 Select Case ctrl$
-  Case "ctrl.pglcd2"
+  Case "ctrl.gamemite"
     Text 280, 164, "GAMEPAD", CT
   Case "nes_a"
     Text 280, 164, "NES PAD", CT
