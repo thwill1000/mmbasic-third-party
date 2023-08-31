@@ -29,7 +29,7 @@ sys.override_break("on_break")
 
 If sys.is_device%("pmvga") Then
   Dim CONTROLLERS$(2) = ("keys_wasd", "nes_a", "atari_a")
-ElseIf sys.is_device%("pglcd") Then
+ElseIf sys.is_device%("gamemite") Then
   Dim CONTROLLERS$(1) = ("keys_wasd", "ctrl.gamemite")
 ElseIf sys.is_device%("pm*", "mmb4w") Then
   Dim CONTROLLERS$(1) = ("keys_wasd", "keys_wasd")
@@ -341,7 +341,7 @@ Sub on_break()
 End Sub
 
 Sub end_program(break%)
-  If sys.is_device%("pglcd") Then
+  If sys.is_device%("gamemite") Then
     gamemite.end(break%)
   Else
     Page Write 0
@@ -357,7 +357,7 @@ Sub end_program(break%)
 End Sub
 
 Function show_title$()
-  If sys.is_device%("pglcd") Then
+  If sys.is_device%("gamemite") Then
     Const platform$ = "GameMite"
     Const txt$ = "Press START"
   ElseIf sys.is_device%("pm") Then

@@ -40,7 +40,7 @@ sys.override_break("on_break")
 
 If sys.is_device%("pmvga") Then
   Dim CONTROLLERS$(2) = ("keyboard", "nes_a", "atari_a")
-ElseIf sys.is_device%("pglcd") Then
+ElseIf sys.is_device%("gamemite") Then
   Dim CONTROLLERS$(1) = ("keyboard", "ctrl.gamemite")
 ElseIf sys.is_device%("pm*", "mmb4w") Then
   Dim CONTROLLERS$(1) = ("keyboard", "keyboard")
@@ -255,7 +255,7 @@ Sub intro()
   inc_score(0, 1)
 
   Local txt$ = "Press SPACE To Play"
-  If sys.is_device%("pglcd") Then txt$ = "Press START to Play"
+  If sys.is_device%("gamemite") Then txt$ = "Press START to Play"
   If sys.is_device%("cmm2*", "pmvga") Then txt$ = "Press START, FIRE or SPACE"
   Text 160, 216, txt$, CT, , , Rgb(Green)
   Box 50, 229, 220, 1, , , Rgb(Green)
@@ -289,7 +289,7 @@ Sub intro()
   If sys.is_device%("pm*") Then Font 7
   Text 160, y%, "(C) 1978 BY TAITO", CT
   Inc y%, Mm.Info(FontHeight) + 1
-  Text 160, y%, Choice(sys.is_device%("pglcd"), "GAMEMITE", "PICOMITE-VGA") + " VERSION", CT
+  Text 160, y%, Choice(sys.is_device%("gamemite"), "GAMEMITE", "PICOMITE-VGA") + " VERSION", CT
   Inc y%, Mm.Info(FontHeight) + 1
   Text 160, y%, "2022 BY MARTIN HERHAUS", CT
   Font 1
@@ -376,7 +376,7 @@ Sub on_break()
 End Sub
 
 Sub end_program(break%)
-  If sys.is_device%("pglcd") Then
+  If sys.is_device%("gamemite") Then
     gamemite.end(break%)
   Else
     Page Write 0
