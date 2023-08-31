@@ -32,7 +32,7 @@ Const VERSION = 911 ' 0.9.11
 #Include "../splib/ctrl.inc"
 #Include "../splib/string.inc"
 #Include "../splib/msgbox.inc"
-'!if defined(PGLCD) || defined(PGLCD2)
+'!if defined(GAMEMITE)
 #Include "../splib/gamemite.inc"
 '!endif
 
