@@ -33,7 +33,7 @@ Const VERSION = 911 ' 0.9.11
 #Include "../splib/string.inc"
 #Include "../splib/msgbox.inc"
 '!if defined(PGLCD) || defined(PGLCD2)
-#Include "../splib/pglcd.inc"
+#Include "../splib/gamemite.inc"
 '!endif
 
 sys.override_break("on_break")
@@ -377,7 +377,7 @@ End Sub
 
 Sub end_program(break%)
   If sys.is_device%("pglcd") Then
-    pglcd.end(break%)
+    gamemite.end(break%)
   Else
     Page Write 0
     Colour Rgb(White), Rgb(Black)
