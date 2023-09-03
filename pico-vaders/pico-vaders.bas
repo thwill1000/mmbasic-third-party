@@ -11,7 +11,7 @@ Option Base 0
 Option Default None
 Option Explicit On
 
-Const VERSION = 911 ' 0.9.11
+Const VERSION = 10100 ' 1.1.0
 
 #Include "../splib/system.inc"
 

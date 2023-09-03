@@ -2,7 +2,7 @@
 ' Copyright (c) 2022-2023 Martin Herhaus
 ' GameMite port by Thomas H. Williams
 
-Const VERSION = 911 ' 0.9.11
+Const VERSION = 10100 ' 1.1.0
 
 #Include "../splib/system.inc"
 
