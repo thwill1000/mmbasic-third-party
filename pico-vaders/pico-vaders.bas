@@ -254,9 +254,9 @@ Sub intro()
   Box 0, 30, 320, 210, , 0, 0
   inc_score(0, 1)
 
-  Local txt$ = "Press SPACE To Play"
-  If sys.is_device%("gamemite") Then txt$ = "Press START to Play"
-  If sys.is_device%("cmm2*", "pmvga") Then txt$ = "Press START, FIRE or SPACE"
+  Local txt$ = "Press SPACE To play"
+  If sys.is_device%("gamemite") Then txt$ = "Press START to play"
+  If sys.is_device%("cmm2*", "pmvga") Then txt$ = "Press START, FIRE or SPACE to play"
   Text 160, 216, txt$, CT, , , Rgb(Green)
   Box 50, 229, 220, 1, , , Rgb(Green)
 
@@ -315,8 +315,6 @@ Sub intro()
   Box 174, 30, 320 - 174, 10, , 0, 0
 
   If key% Then msgbox.beep(1)
-  key% = poll_ctrl%()
-  msgbox.beep(1)
 End Sub
 
 Function intro_alien%(x%, dir%)
@@ -338,7 +336,7 @@ Function poll_ctrl%(duration%)
     ctrl$ = ctrl.poll_multiple$(CONTROLLERS$(), ctrl.A Or ctrl.START Or ctrl.SELECT, d%, poll_ctrl%)
     If poll_ctrl% <> ctrl.SELECT Then Exit Do
     Call ctrl$, ctrl.OPEN
-    on_select()
+    on_quit()
     Call ctrl$, ctrl.CLOSE
     poll_ctrl% = 0
   Loop
@@ -349,15 +347,15 @@ Function wait%(duration%, mask%)
   Local t% = Timer + duration%
   Do While Timer < t%
     Call ctrl$, wait%
-    If wait% = ctrl.SELECT Then on_select()
+    If wait% = ctrl.SELECT Then on_quit()
     wait% = wait% And mask%
     If wait% Then Exit Do
     Pause 5
   Loop
 End Function
 
-' Handler for the SELECT button that shows the Quit dialog.
-Sub on_select()
+' Button handler that shows the Quit dialog.
+Sub on_quit()
   msgbox.beep(1)
   Local buttons$(1) Length 3 = ("Yes", "No")
   Const msg$ = "    Quit game?"
@@ -706,8 +704,8 @@ Sub move_player()
       If Not ua% Then Inc myst%, Int(Rnd * 3)
       ba% = 1 : bx% = plx% + 7 : by% = 210
       For i% = 1000 To 1 Step -50 : Play Tone 1000 + i%, 1000 + i%, 5 : Pause 2 : Next
-    Case ctrl.SELECT
-      on_select()
+    Case ctrl.SELECT, ctrl.START
+      on_quit()
   End Select
 End Sub
 

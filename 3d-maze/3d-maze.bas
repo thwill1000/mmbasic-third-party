@@ -175,10 +175,10 @@ Do
         Text 280, 175, Choice(ctrl$ = "keys_wasd", "M", "B") + ":MAP ON ", CT
       EndIf
       redraw% = 1
-    Case ctrl.SELECT
-      on_select()
+    Case ctrl.SELECT, ctrl.START
+      on_quit()
       redraw% = 1
-    case ctrl.SELECT Or ctrl.START
+    Case ctrl.A Or ctrl.B
       ' Jump to the exit
       PlrX% = Ex_X% : PlrY% = Ex_Y% + 1 : pd% = 0
       redraw% = 1
@@ -201,7 +201,7 @@ Function blocked%(direction%)
   blocked% = Maze$(x%, y%) = "#"
 End Function
 
-Sub on_select()
+Sub on_quit()
   msgbox.beep(1)
   Local buttons$(1) Length 3 = ("Yes", "No")
   Const msg$ = "Quit game?"
@@ -359,16 +359,16 @@ End Sub
 Function show_title$()
   If sys.is_device%("gamemite") Then
     Const platform$ = "GameMite"
-    Const txt$ = "Press START"
+    Const txt$ = "Press START to play"
   ElseIf sys.is_device%("pm") Then
     Const platform$ = "PicoMite"
-    Const txt$ = "Press SPACE"
+    Const txt$ = "Press SPACE to play"
   ElseIf sys.is_device%("pmvga") Then
     Const platform$ = "PicoGAME VGA"
-    Const txt$ = "Press START, FIRE or SPACE"
+    Const txt$ = "Press START, FIRE or SPACE to play"
   Else
     Const platform$ = "Colour Maximite 2"
-    Const txt$ = "Press START, FIRE or SPACE"
+    Const txt$ = "Press START, FIRE or SPACE to play"
   EndIf
 
   Const X_OFFSET% = MM.HRes \ 2
@@ -387,7 +387,7 @@ Function show_title$()
     ctrl$ = ctrl.poll_multiple$(CONTROLLERS$(), ctrl.A Or ctrl.START Or ctrl.SELECT, 100, key%)
     If key% And ctrl.SELECT Then
       Call ctrl$, ctrl.OPEN
-      on_select()
+      on_quit()
       Call ctrl$, ctrl.CLOSE
       key% = 0
     EndIf
