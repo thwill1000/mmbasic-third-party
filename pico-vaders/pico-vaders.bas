@@ -11,7 +11,7 @@ Option Base 0
 Option Default None
 Option Explicit On
 
-Const VERSION = 10100 ' 1.1.0
+Const VERSION = 10101 ' 1.1.1
 
 #Include "../splib/system.inc"
 
@@ -314,7 +314,13 @@ Sub intro()
   Text 168, 30, "Y"
   Box 174, 30, 320 - 174, 10, , 0, 0
 
-  If key% Then msgbox.beep(1)
+  If key% Then
+    msgbox.beep(1)
+    Pause 1000
+  Else
+    key% = poll_ctrl%()
+    msgbox.beep(1)
+  EndIf
 End Sub
 
 Function intro_alien%(x%, dir%)
