@@ -13,6 +13,8 @@ Option Explicit On
 
 Const VERSION = 10101 ' 1.1.1
 
+'!define NO_INCLUDE_GUARDS
+
 #Include "../splib/system.inc"
 
 '!if defined PICOMITEVGA
