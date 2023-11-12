@@ -11,19 +11,19 @@ Option Base 0
 Option Default None
 Option Explicit On
 
-Const VERSION = 10101 ' 1.1.1
+Const VERSION = 101302 ' 1.1.2
 
 '!define NO_INCLUDE_GUARDS
 
 #Include "../splib/system.inc"
 
-'!if defined PICOMITEVGA
+'!if defined(PICOMITEVGA)
   '!replace { Page Copy 1 To 0 , B } { FrameBuffer Copy F , N , B }
   '!replace { Page Copy 0 To 1 , B } { FrameBuffer Copy N , F , B }
   '!replace { Page Write 1 } { FrameBuffer Write F }
   '!replace { Page Write 0 } { FrameBuffer Write N }
   '!replace { Mode 7 } { Mode 2 : FrameBuffer Create }
-'!elif defined PICOMITE
+'!elif defined(PICOMITE) || defined(GAMEMITE)
   '!replace { Page Copy 1 To 0 , B } { FrameBuffer Copy F , N }
   '!replace { Page Copy 0 To 1 , B } { FrameBuffer Copy N , F }
   '!replace { Page Write 1 } { FrameBuffer Write F }
@@ -34,20 +34,29 @@ Const VERSION = 10101 ' 1.1.1
 #Include "../splib/ctrl.inc"
 #Include "../splib/string.inc"
 #Include "../splib/msgbox.inc"
+
 '!if defined(GAMEMITE)
-#Include "../splib/gamemite.inc"
+  #Include "../splib/gamemite.inc"
+  '!dynamic_call ctrl.gamemite
+  '!dynamic_call keys_cursor_ext
+'!else
+  '!dynamic_call atari_a
+  '!dynamic_call atari_dx
+  '!dynamic_call keys_cursor_ext
+  '!dynamic_call nes_a
+  '!dynamic_call wii_classic_3
 '!endif
 
-sys.override_break("on_break")
+sys.override_break("break_cb")
 
 If sys.is_device%("pmvga") Then
-  Dim CONTROLLERS$(2) = ("keyboard", "nes_a", "atari_a")
+  Dim CONTROLLERS$(2) = ("keys_cursor_ext", "nes_a", "atari_a")
 ElseIf sys.is_device%("gamemite") Then
-  Dim CONTROLLERS$(1) = ("keyboard", "ctrl.gamemite")
+  Dim CONTROLLERS$(1) = ("keys_cursor_ext", "ctrl.gamemite")
 ElseIf sys.is_device%("pm*", "mmb4w") Then
-  Dim CONTROLLERS$(1) = ("keyboard", "keyboard")
+  Dim CONTROLLERS$(1) = ("keys_cursor_ext", "keys_cursor_ext")
 ElseIf sys.is_device%("cmm2*") Then
-  Dim CONTROLLERS$(2) = ("keyboard", "wii_classic_3", "atari_dx")
+  Dim CONTROLLERS$(2) = ("keys_cursor_ext", "wii_classic_3", "atari_dx")
 Else
   Error "Unsupported device: " + Mm.Device$
 EndIf
@@ -377,7 +386,8 @@ Sub on_quit()
   ctrl.wait_until_idle(ctrl$)
 End Sub
 
-Sub on_break()
+'!dynamic_call break_cb
+Sub break_cb()
   end_program(1)
 End Sub
 
@@ -834,16 +844,6 @@ Sub show_game_over()
     Text 160, 116, "         ", C
     If wait%(600, ctrl.A Or ctrl.START) Then Exit Do
   Loop
-End Sub
-
-Sub keyboard(x%)
-  If x% < 0 Then Exit Sub
-  x% =    ctrl.keydown%(32)  * ctrl.A
-  Inc x%, ctrl.keydown%(128) * ctrl.UP
-  Inc x%, ctrl.keydown%(129) * ctrl.DOWN
-  Inc x%, ctrl.keydown%(130) * ctrl.LEFT
-  Inc x%, ctrl.keydown%(131) * ctrl.RIGHT
-  Inc x%, ctrl.keydown%(113) * ctrl.SELECT ' q
 End Sub
 
 ' Sprite data

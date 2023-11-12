@@ -2,18 +2,18 @@
 ' Copyright (c) 2022-2023 Martin Herhaus
 ' GameMite port by Thomas H. Williams
 
-Const VERSION = 10100 ' 1.1.0
+Const VERSION = 101301 ' 1.1.1
 
 '!define NO_INCLUDE_GUARDS
 
 #Include "../splib/system.inc"
 
-'!if defined PICOMITEVGA
+'!if defined(PICOMITEVGA)
   '!replace { Page Copy 1 To 0 , B } { FrameBuffer Copy F , N , B }
   '!replace { Page Write 1 } { FrameBuffer Write F }
   '!replace { Page Write 0 } { FrameBuffer Write N }
   '!replace { Mode 7 } { Mode 2 : FrameBuffer Create }
-'!elif defined PICOMITE
+'!elif defined(PICOMITE) || defined(GAMEMITE)
   '!replace { Page Copy 1 To 0 , B } { FrameBuffer Copy F , N }
   '!replace { Page Write 1 } { FrameBuffer Write F }
   '!replace { Page Write 0 } { FrameBuffer Write N }
@@ -23,11 +23,20 @@ Const VERSION = 10100 ' 1.1.0
 #Include "../splib/ctrl.inc"
 #Include "../splib/string.inc"
 #Include "../splib/msgbox.inc"
+
 '!if defined(GAMEMITE)
-#Include "../splib/gamemite.inc"
+  #Include "../splib/gamemite.inc"
+  '!dynamic_call ctrl.gamemite
+  '!dynamic_call keys_wasd
+'!else
+  '!dynamic_call atari_a
+  '!dynamic_call atari_dx
+  '!dynamic_call keys_wasd
+  '!dynamic_call nes_a
+  '!dynamic_call wii_classic_3
 '!endif
 
-sys.override_break("on_break")
+sys.override_break("break_cb")
 
 If sys.is_device%("pmvga") Then
   Dim CONTROLLERS$(2) = ("keys_wasd", "nes_a", "atari_a")
@@ -338,7 +347,8 @@ Sub generator
 Loop
 End Sub
 
-Sub on_break()
+'!dynamic_call break_cb
+Sub break_cb()
   end_program(1)
 End Sub
 
