@@ -26,13 +26,11 @@ Const SIZE = Mm.HRes / 40
 Const CW = Rgb(White)
 
 'x,y are coordinates, r=radius, c=color, s=speed
-Dim x0, x1, x2, y0, y1, y2, r0, r1, r2, c0, c1, c2, s0, s1, s2
-Dim u1, u2, p0, p1, p2
-Dim v1, v2, dx1, dx2, dy1, dy2
+Dim c(2), dx(2), dy(2), p(2), r(2), s(2), u(2), v(2), x(2), y(2)
 
 'intro and start score reset
 ' intro_screen()
-u1 = 0 : u2 = 0  'scores player and AI
+u(1) = 0 : u(2) = 0  'scores player and AI
 
 'the game uses framebuffer to prevent screen drawing artefacts
 FrameBuffer Create
@@ -49,7 +47,7 @@ start_round(1)
 Dim t%
 Do
   t% = Timer + 100
-  draw_food(c0)
+  draw_food(c(0))
   ctrl_player()
   ctrl_ai()
   erase_players()
@@ -70,23 +68,21 @@ Sub start_round(first%)
 
     Do
       Pause 50
-    Loop While Pin(gp14) + Pin(gp15) = 2
-
-'    If Pin(gp14) = 0 Then end_program()
+    Loop While Pin(Gp14) + Pin(Gp15) = 2
   EndIf
 
   Cls
 
-  x0 = Mm.HRes / 2 : y0 = Mm.VRes / 3 : r0 = SIZE : c0 = Rgb(Green)
-  x1 = Mm.HRes / 3 : y1 = 2 * Mm.VRes / 3 : r1 = SIZE : c1 = Rgb(Blue) : s1 = 5  'player speed, tweak
-  x2 = 2 * Mm.HRes / 3 : y2 = 2 * Mm.VRes / 3 : r2 = SIZE : c2 = Rgb(Red) : s2 = 3  'AI speed, tweak
+  x(0) = Mm.HRes / 2 : y(0) = Mm.VRes / 3 : r(0) = SIZE : c(0) = Rgb(Green)
+  x(1) = Mm.HRes / 3 : y(1) = 2 * Mm.VRes / 3 : r(1) = SIZE : c(1) = Rgb(Blue) : s(1) = 5  'player speed, tweak
+  x(2) = 2 * Mm.HRes / 3 : y(2) = 2 * Mm.VRes / 3 : r(2) = SIZE : c(2) = Rgb(Red) : s(2) = 3  'AI speed, tweak
 End Sub
 
 'seed new green circle
 Sub create_food()
   draw_food(0) ' Erase old food
-  x0 = Mm.HRes * Rnd()
-  y0 = Mm.VRes * Rnd()
+  x(0) = Mm.HRes * Rnd()
+  y(0) = Mm.VRes * Rnd()
 End Sub
 
 Sub intro_screen()
@@ -112,146 +108,146 @@ Sub intro_screen()
 End Sub
 
 Sub draw_food(c%)
-  Circle x0 - 4, y0 - 2, r0, , , c%, c%
-  Circle x0 + 4, y0, r0, , , c%, c%
-  Line x0 - 3, y0, x0 + 5, y0 - 2 * r0, 1, c%
+  Circle x(0) - 4, y(0) - 2, r(0), , , c%, c%
+  Circle x(0) + 4, y(0), r(0), , , c%, c%
+  Line x(0) - 3, y(0), x(0) + 5, y(0) - 2 * r(0), 1, c%
 End Sub
 
 Sub ctrl_player()
-  Local key%, p_old% = p1
+  Local key%, p_old% = p(1)
   Call ctrl$, key%
-  p1 = key% And (ctrl.DOWN Or ctrl.LEFT Or ctrl.RIGHT Or ctrl.UP)
-  If key% And ctrl.A Then s1 = 12 ' Turbo run, tweak for fun
+  p(1) = key% And (ctrl.DOWN Or ctrl.LEFT Or ctrl.RIGHT Or ctrl.UP)
+  If key% And ctrl.A Then s(1) = 12 ' Turbo run, tweak for fun
   If key% And ctrl.B Then Exit Sub
-  If Not p1 Then p1 = p_old%
-  If s1 > 5 Then Inc s1, -1 ' Slow player if turbo-running.
+  If Not p(1) Then p(1) = p_old%
+  If s(1) > 5 Then Inc s(1), -1 ' Slow player if turbo-running.
 End Sub
 
 Sub ctrl_ai()
-  Local AIx% = Int((x0 - x2) / 2), AIy% = Int((y0 - y2) / 2)
-  p2 = 0
-  If Abs(AIx%) > 1 Then p2 = p2 Or Choice(AIx% < 0, ctrl.LEFT, ctrl.RIGHT)
-  If Abs(AIy%) > 1 Then p2 = p2 Or Choice(AIy% < 0, ctrl.UP, ctrl.DOWN)
+  Local AIx% = Int((x(0) - x(2)) / 2), AIy% = Int((y(0) - y(2)) / 2)
+  p(2) = 0
+  If Abs(AIx%) > 1 Then p(2) = p(2) Or Choice(AIx% < 0, ctrl.LEFT, ctrl.RIGHT)
+  If Abs(AIy%) > 1 Then p(2) = p(2) Or Choice(AIy% < 0, ctrl.UP, ctrl.DOWN)
 End Sub
 
 Sub erase_players()
-  Circle x1, y1, r1 + 10, , , 0, 0
-  Circle x2, y2, r2 + 10, , , 0, 0
+  Circle x(1), y(1), r(1) + 10, , , 0, 0
+  Circle x(2), y(2), r(2) + 10, , , 0, 0
 End Sub
 
 Sub move_players()
-  v1 = 0 : v2 = 0 : dx1 = 0 : dx2 = 0 : dy1 = 0 : dy2 = 0
+  v(1) = 0 : v(2) = 0 : dx(1) = 0 : dx(2) = 0 : dy(1) = 0 : dy(2) = 0
 
 'move players
-  If (p1 And ctrl.LEFT) Then Inc v1, 1 : Inc x1, -s1 : dx1 = -1
-  If (p1 And ctrl.RIGHT) Then Inc v1, 1 : Inc x1, s1 : dx1 = 1
-  If (p1 And ctrl.UP) Then Inc v1, 1 : Inc y1, -s1 : dy1 = -1
-  If (p1 And ctrl.DOWN) Then Inc v1, 1 : Inc y1, s1 : dy1 = 1
-  If (p2 And ctrl.LEFT) Then Inc v2, 1 : Inc x2, -s2 : dx2 = -1
-  If (p2 And ctrl.RIGHT) Then Inc v2, 1 : Inc x2, s2 : dx2 = 1
-  If (p2 And ctrl.UP) Then Inc v2, 1 : Inc y2, -s2 : dy2 = -1
-  If (p2 And ctrl.DOWN) Then Inc v2, 1 : Inc y2, s2 : dy2 = 1
+  If (p(1) And ctrl.LEFT) Then Inc v(1), 1 : Inc x(1), -s(1) : dx(1) = -1
+  If (p(1) And ctrl.RIGHT) Then Inc v(1), 1 : Inc x(1), s(1) : dx(1) = 1
+  If (p(1) And ctrl.UP) Then Inc v(1), 1 : Inc y(1), -s(1) : dy(1) = -1
+  If (p(1) And ctrl.DOWN) Then Inc v(1), 1 : Inc y(1), s(1) : dy(1) = 1
+  If (p(2) And ctrl.LEFT) Then Inc v(2), 1 : Inc x(2), -s(2) : dx(2) = -1
+  If (p(2) And ctrl.RIGHT) Then Inc v(2), 1 : Inc x(2), s(2) : dx(2) = 1
+  If (p(2) And ctrl.UP) Then Inc v(2), 1 : Inc y(2), -s(2) : dy(2) = -1
+  If (p(2) And ctrl.DOWN) Then Inc v(2), 1 : Inc y(2), s(2) : dy(2) = 1
 
 'allow wrap around
-  If x1 < 0 Then x1 = x1 + Mm.HRes
-  If x1 > Mm.HRes Then x1 = x1 - Mm.HRes
-  If y1 < 0 Then y1 = y1 + Mm.VRes
-  If y1 > Mm.VRes Then y1 = y1 - Mm.VRes
+  If x(1) < 0 Then x(1) = x(1) + Mm.HRes
+  If x(1) > Mm.HRes Then x(1) = x(1) - Mm.HRes
+  If y(1) < 0 Then y(1) = y(1) + Mm.VRes
+  If y(1) > Mm.VRes Then y(1) = y(1) - Mm.VRes
 End Sub
 
 Sub handle_collisions()
 'calculate distances
-  Local d12 = Sqr((x1 - x2) ^ 2 + (y1 - y2) ^ 2)
-  Local d10 = Sqr((x1 - x0) ^ 2 + (y1 - y0) ^ 2)
-  Local d20 = Sqr((x0 - x2) ^ 2 + (y0 - y2) ^ 2)
+  Local d12 = Sqr((x(1) - x(2)) ^ 2 + (y(1) - y(2)) ^ 2)
+  Local d10 = Sqr((x(1) - x(0)) ^ 2 + (y(1) - y(0)) ^ 2)
+  Local d20 = Sqr((x(0) - x(2)) ^ 2 + (y(0) - y(2)) ^ 2)
 
 'game rules, collision between players is punished
 'player who moves is culprit
-  If d12 < (r1 + r2) Then
-    If v1 > 0 Then r1 = r1 / 1.5
-    If v2 > 0 Then r2 = r2 / 1.5
-    r1 = Max(r1, 3)
-    r2 = Max(r2, 3)
+  If d12 < (r(1) + r(2)) Then
+    If v(1) > 0 Then r(1) = r(1) / 1.5
+    If v(2) > 0 Then r(2) = r(2) / 1.5
+    r(1) = Max(r(1), 3)
+    r(2) = Max(r(2), 3)
   EndIf
 
 'you eat, you grow....
-  If d10 < (r1 + r0) Then r1 = r1 * 2 : create_food()
-  If d20 < (r0 + r2) Then r2 = r2 * 2 : create_food()
+  If d10 < (r(1) + r(0)) Then r(1) = r(1) * 2 : create_food()
+  If d20 < (r(0) + r(2)) Then r(2) = r(2) * 2 : create_food()
 End Sub
 
 Sub draw_players()
   Static counter = 0
-  Local dy, dx, v
+  Local dyy, dxx, vv
   Inc counter, 1
-'if r1>50 then c1=rgb(cyan) else c1=rgb(blue)
+'if r(1)>50 then c(1)=rgb(cyan) else c(1)=rgb(blue)
 'draw player
-  If v1 > 0 Then
+  If v(1) > 0 Then
 'draw player 1 body
-    Circle x1, y1, r1, , , c1, c1
+    Circle x(1), y(1), r(1), , , c(1), c(1)
 'eyes when moving
-    v = 0.7 + (v1 = 1) * 0.3 'sqrt 2 if 45 degrees
-    dy = 6 * dy1 : dx = 6 * dx1
-    Circle x1 + v * ((dx1 * r1) - dy), y1 + v * ((dy1 * r1) + dx), 5, , , cw, cw
-    Circle x1 + v * ((dx1 * r1) + dy), y1 + v * ((dy1 * r1) - dx), 5, , , cw, cw
-    Circle x1 + v * ((dx1 * (r1 + 2) - dy)), y1 + v * ((dy1 * (r1 + 2)) + dx), 2, , , 9, 9
-    Circle x1 + v * ((dx1 * (r1 + 2) + dy)), y1 + v * ((dy1 * (r1 + 2)) - dx), 2, , , 0, 0
+    vv = 0.7 + (v(1) = 1) * 0.3 'sqrt 2 if 45 degrees
+    dyy = 6 * dy(1) : dxx = 6 * dx(1)
+    Circle x(1) + vv * ((dx(1) * r(1)) - dyy), y(1) + vv * ((dy(1) * r(1)) + dxx), 5, , , cw, cw
+    Circle x(1) + vv * ((dx(1) * r(1)) + dyy), y(1) + vv * ((dy(1) * r(1)) - dxx), 5, , , cw, cw
+    Circle x(1) + vv * ((dx(1) * (r(1) + 2) - dyy)), y(1) + vv * ((dy(1) * (r(1) + 2)) + dxx), 2, , , 9, 9
+    Circle x(1) + vv * ((dx(1) * (r(1) + 2) + dyy)), y(1) + vv * ((dy(1) * (r(1) + 2)) - dxx), 2, , , 0, 0
   Else
 'draw player 1 body
-    Circle x1, y1, r1, , , c1, c1
+    Circle x(1), y(1), r(1), , , c(1), c(1)
 'not moving, eyes sleepy
-    Circle x1 + 6, y1 + 2, 5, , , cw, cw
-    Circle x1 - 6, y1 + 2, 5, , , cw, cw
-    Circle x1 + 6, y1 - 1, 5, , , c1, c1
+    Circle x(1) + 6, y(1) + 2, 5, , , cw, cw
+    Circle x(1) - 6, y(1) + 2, 5, , , cw, cw
+    Circle x(1) + 6, y(1) - 1, 5, , , c(1), c(1)
     If counter And 28 Then
-      Circle x1 - 6, y1 + 4, 2, , , 0, 0
+      Circle x(1) - 6, y(1) + 4, 2, , , 0, 0
     Else
-      Circle x1 - 6, y1 - 1, 5, , , c1, c1
+      Circle x(1) - 6, y(1) - 1, 5, , , c(1), c(1)
     EndIf
   EndIf
 
-'if r2>50 then c1=rgb(cyan) else c1=rgb(blue)
+'if r(2)>50 then c(1)=rgb(cyan) else c(1)=rgb(blue)
 'draw player
-  If v2 > 0 Then
+  If v(2) > 0 Then
 'draw player 1 body
-    Circle x2, y2, r2, , , c2, c2
+    Circle x(2), y(2), r(2), , , c(2), c(2)
 'eyes when moving
-    v = 0.7 + (v2 = 1) * 0.3 'sqrt 2 if 45 degrees
-    dy = 6 * dy2 : dx = 6 * dx2
-    Circle x2 + v * ((dx2 * r2) - dy), y2 + v * ((dy2 * r2) + dx), 5, , , cw, cw
-    Circle x2 + v * ((dx2 * r2) + dy), y2 + v * ((dy2 * r2) - dx), 5, , , cw, cw
-    Circle x2 + v * ((dx2 * (r2 + 2) - dy)), y2 + v * ((dy2 * (r2 + 2)) + dx), 2, , , 9, 9
-    Circle x2 + v * ((dx2 * (r2 + 2) + dy)), y2 + v * ((dy2 * (r2 + 2)) - dx), 2, , , 0, 0
+    vv = 0.7 + (v(2) = 1) * 0.3 'sqrt 2 if 45 degrees
+    dyy = 6 * dy(2) : dxx = 6 * dx(2)
+    Circle x(2) + vv * ((dx(2) * r(2)) - dyy), y(2) + vv * ((dy(2) * r(2)) + dxx), 5, , , cw, cw
+    Circle x(2) + vv * ((dx(2) * r(2)) + dyy), y(2) + vv * ((dy(2) * r(2)) - dxx), 5, , , cw, cw
+    Circle x(2) + vv * ((dx(2) * (r(2) + 2) - dyy)), y(2) + vv * ((dy(2) * (r(2) + 2)) + dxx), 2, , , 9, 9
+    Circle x(2) + vv * ((dx(2) * (r(2) + 2) + dyy)), y(2) + vv * ((dy(2) * (r(2) + 2)) - dxx), 2, , , 0, 0
   Else
 'draw player 1 body
-    Circle x2, y2, r2, , , c2, c2
+    Circle x(2), y(2), r(2), , , c(2), c(2)
 'not moving, eyes sleepy
-    Circle x2 + 6, y2 + 2, 5, , , cw, cw
-    Circle x2 - 6, y2 + 2, 5, , , cw, cw
-    Circle x2 + 6, y2 - 1, 5, , , c2, c2
+    Circle x(2) + 6, y(2) + 2, 5, , , cw, cw
+    Circle x(2) - 6, y(2) + 2, 5, , , cw, cw
+    Circle x(2) + 6, y(2) - 1, 5, , , c(2), c(2)
     If counter + 14 And 30 Then
-      Circle x2 - 6, y2 - 1, 5, , , c2, c2
+      Circle x(2) - 6, y(2) - 1, 5, , , c(2), c(2)
     Else
-      Circle x2 - 6, y2 + 4, 2, , , 0, 0
+      Circle x(2) - 6, y(2) + 4, 2, , , 0, 0
     EndIf
   EndIf
 End Sub
 
 Sub handle_winning()
-  If r1 > Mm.VRes / 2 Then
+  If r(1) > Mm.VRes / 2 Then
     Text Mm.HRes / 2, Mm.VRes / 2, "Blue Wins", "CM", 1, 1, Rgb(Yellow)
-    u1 = u1 + 1
+    u(1) = u(1) + 1
     start_round()
   EndIf
-  If r2 > Mm.VRes / 2 Then
+  If r(2) > Mm.VRes / 2 Then
     Text Mm.HRes / 2, Mm.VRes / 2, "Red Wins", "CM", 1, 1, Rgb(Yellow)
-    u2 = u2 + 1
+    u(2) = u(2) + 1
     start_round()
   EndIf
 End Sub
 
 Sub draw_score()
-  Text 0, 0, Str$(u1), "LT", 1, 1, Rgb(Blue)
-  Text Mm.HRes, 0, Str$(u2), "RT", 1, 1, Rgb(Red)
+  Text 0, 0, Str$(u(1)), "LT", 1, 1, Rgb(Blue)
+  Text Mm.HRes, 0, Str$(u(2)), "RT", 1, 1, Rgb(Red)
 End Sub
 
 '!dynamic_call break_cb
