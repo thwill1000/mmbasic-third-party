@@ -1,201 +1,95 @@
-' Circle-One for Picomite LCD 5.07.08
+'_Circle-One for Game*Mite 5.07.08
+'_An original game for the PicoMite VGA and Game*Mite.
 ' Copyright (c) 2023 @Volhout
-'
-' An original game for the PicoMite VGA and GameMite.
 
-'------------------------------ setup PicoMite ---------------------------
+Option Base 0
+Option Default Float
+Option Explicit On
 
-  'system setup
-Cls
-set_io_pins
-Const HIGH_SCORE_FILE$ = "A:/high-scores/n_string.txt"
+#Include "../splib/system.inc"
+#Include "../splib/ctrl.inc"
+#Include "../splib/gamemite.inc"
+
+sys.override_break("break_cb")
+
 Const CURRENT_PATH$ = Choice(Mm.Info(Path) <> "", Mm.Info(Path), Cwd$)
 
+ctrl.init_keys()
+'!dynamic_call ctrl.gamemite
+Dim ctrl$ = "ctrl.gamemite"
+Call ctrl$, ctrl.OPEN
 
 'initial values for the players and the target food
 'target (green) index 0, player (keyboard - blue) index 1
 'right player (AI - red) index 2
-sz = Mm.HRes / 40
+Const SIZE = Mm.HRes / 40
+Const CW = Rgb(White)
 
 'x,y are coordinates, r=radius, c=color, s=speed
-x0 = Mm.HRes / 2 : y0 = Mm.VRes / 3 : r0 = sz : c0 = Rgb(Green)
-x1 = Mm.HRes / 3 : y1 = 2 * Mm.VRes / 3 : r1 = sz : c1 = Rgb(Blue) : s1 = 5  'player speed, tweak
-x2 = 2 * Mm.HRes / 3 : y2 = 2 * Mm.VRes / 3 : r2 = sz : c2 = Rgb(Red) : s2 = 3  'AI speed, tweak
-cw = Rgb(White)
+Dim x0, x1, x2, y0, y1, y2, r0, r1, r2, c0, c1, c2, s0, s1, s2
+Dim u1, u2, p0, p1, p2
+Dim v1, v2, dx1, dx2, dy1, dy2
 
 'intro and start score reset
-introscreen
+' intro_screen()
 u1 = 0 : u2 = 0  'scores player and AI
 
 'the game uses framebuffer to prevent screen drawing artefacts
-FRAMEBUFFER Create
-FRAMEBUFFER Write f
+FrameBuffer Create
+FrameBuffer Write f
 
 'initial target
-food
-counter = 0
+'food
+'counter = 0
 
 'game music
 Play ModFile CURRENT_PATH$ + "circle.mod"
 
-
-'---------------------- this is the main game loop --------------------------
-'the game stops when one player size exceeds the screen limits
-
+start_round(1)
+Dim t%
 Do
+  t% = Timer + 100
+  draw_food(c0)
+  ctrl_player()
+  ctrl_ai()
+  erase_players()
+  move_players()
+  handle_collisions()
+  draw_players()
+  handle_winning()
+  draw_score()
+  FrameBuffer Copy F, N, B
+  Do While Timer < t% : Loop
+Loop
+end_program()
 
-'read keyboard
-  t = Timer + 30
-  Do While Timer < t
-      'scan keys
-    If Pin(gp8) = 0 Then p1 = 4   'down
-    If Pin(gp9) = 0 Then p1 = 2   'left
-    If Pin(gp10) = 0 Then p1 = 8  'up
-    If Pin(gp11) = 0 Then p1 = 1  'right
-    If Pin(gp15) = 0 Then s1 = 12 'turbo run, tweak for fun
-  Loop
-  If s1 > 5 Then s1 = s1 - 1
+Sub start_round(first%)
+  If Not first% Then
+    Text Mm.HRes / 2, 30 + Mm.VRes / 2, "A=continue, B=stop", "CM", 1, 1, Rgb(Yellow)
+    FrameBuffer Copy f, n, b
 
-'read AI
-  moveAI
+    Do
+      Pause 50
+    Loop While Pin(gp14) + Pin(gp15) = 2
 
-'wipe old positions players
-  eraseplayers
-
-'move players
-  v1 = 0 : v2 = 0 : dx1 = 0 : dx2 = 0 : dy1 = 0 : dy2 = 0
-  If (p1 And 2) Then Inc v1, 1 : Inc x1, -s1 : dx1 = -1
-  If (p1 And 1) Then Inc v1, 1 : Inc x1, s1 : dx1 = 1
-  If (p1 And 8) Then Inc v1, 1 : Inc y1, -s1 : dy1 = -1
-  If (p1 And 4) Then Inc v1, 1 : Inc y1, s1 : dy1 = 1
-  If (p2 And 2) Then Inc v2, 1 : Inc x2, -s2 : dx2 = -1
-  If (p2 And 1) Then Inc v2, 1 : Inc x2, s2 : dx2 = 1
-  If (p2 And 8) Then Inc v2, 1 : Inc y2, -s2 : dy2 = -1
-  If (p2 And 4) Then Inc v2, 1 : Inc y2, s2 : dy2 = 1
-
-'allow wrap around
-  If x1 < 0 Then x1 = x1 + Mm.HRes
-  If x1 > Mm.HRes Then x1 = x1 - Mm.HRes
-  If y1 < 0 Then y1 = y1 + Mm.VRes
-  If y1 > Mm.VRes Then y1 = y1 - Mm.VRes
-
-
-'calculate distances
-  d12 = Sqr((x1 - x2) ^ 2 + (y1 - y2) ^ 2)
-  d10 = Sqr((x1 - x0) ^ 2 + (y1 - y0) ^ 2)
-  d20 = Sqr((x0 - x2) ^ 2 + (y0 - y2) ^ 2)
-
-'game rules, collision between players is punished
-'player who moves is culprit
-  If d12 < (r1 + r2) Then
-    If v1 > 0 Then r1 = r1 / 1.5
-    If v2 > 0 Then r2 = r2 / 1.5
-    r1 = Max(r1, 3)
-    r2 = Max(r2, 3)
+'    If Pin(gp14) = 0 Then end_program()
   EndIf
-
-'you eat, you grow....
-  If d10 < (r1 + r0) Then r1 = r1 * 2 : newfood
-  If d20 < (r0 + r2) Then r2 = r2 * 2 : newfood
-
-'write new player /target positions and sizes
-  drawplayers
-  food
-
-'decide winner
-  If r1 > Mm.VRes / 2 Then
-    Text Mm.HRes / 2, Mm.VRes / 2, "Blue Wins", "CM", 1, 1, Rgb(Yellow)
-    u1 = u1 + 1
-    prestart
-  EndIf
-  If r2 > Mm.VRes / 2 Then
-    Text Mm.HRes / 2, Mm.VRes / 2, "Red Wins", "CM", 1, 1, Rgb(Yellow)
-    u2 = u2 + 1
-    prestart
-  EndIf
-
-'score update
-  Text 0, 0, Str$(u1), "LT", 1, 1, Rgb(Blue)
-  Text Mm.HRes, 0, Str$(u2), "RT", 1, 1, Rgb(Red)
-
-'update screen
-  FRAMEBUFFER Copy f, n, b
-  Pause 50
-Loop Until Pin(gp14) = 0  'B pressed
-
-Cls
-Text Mm.HRes / 2, Mm.VRes / 2, "Bye", "CM", 1, 1, Rgb(Yellow)
-FRAMEBUFFER Copy f, n, b
-Run "a:/GameMite/menu.bas"
-End
-
-
-'------------------------------- subs ------------------------------
-Sub moveAI
-  AIx = Int((x0 - x2) / 2)
-  AIy = Int((y0 - y2) / 2)
-  p2 = 0
-'decide preferred direction
-  If Abs(AIx) >= Abs(AIy) Then
-'X is preferred direction
-    movAIx
-  EndIf
-  If Abs(AIx) <= Abs(AIy) Then
-'Y preferred direction
-    movAIy
-  EndIf
-End Sub
-
-Sub movAIx
-  If AIx < 0 Then
-    p2 = p2 + 2
-  Else
-    p2 = p2 + 1
-  EndIf
-End Sub
-
-Sub movAIy
-  If AIy < 0 Then
-    p2 = p2 + 8
-  Else
-    p2 = p2 + 4
-  EndIf
-End Sub
-
-
-'show player info and hold restart until controller key pressed
-Sub prestart
-  Text Mm.HRes / 2, 30 + Mm.VRes / 2, "A=continue, B=stop", "CM", 1, 1, Rgb(Yellow)
-  FRAMEBUFFER Copy f, n, b
-
-  Do
-    Pause 50
-  Loop While Pin(gp14) + Pin(gp15) = 2
-
-  If Pin(gp14) = 0 Then Run "a:/GameMite/menu.bas"
 
   Cls
-'x,y are coordinates, r=radius, c=color, s=speed
-'speed is increased every level...so prepare.....
-  x0 = Mm.HRes / 2 : y0 = Mm.VRes / 3 : r0 = sz : c0 = Rgb(Green)
-  x1 = Mm.HRes / 3 : y1 = 2 * Mm.VRes / 3 : r1 = sz : c1 = Rgb(Blue) : s1 = 5 + (u1 + u2) / 4
-  x2 = 2 * Mm.HRes / 3 : y2 = 2 * Mm.VRes / 3 : r2 = sz : c2 = Rgb(Red) : s2 = 1 + (u1 + u2) / 4
 
-'initial target
-  food
+  x0 = Mm.HRes / 2 : y0 = Mm.VRes / 3 : r0 = SIZE : c0 = Rgb(Green)
+  x1 = Mm.HRes / 3 : y1 = 2 * Mm.VRes / 3 : r1 = SIZE : c1 = Rgb(Blue) : s1 = 5  'player speed, tweak
+  x2 = 2 * Mm.HRes / 3 : y2 = 2 * Mm.VRes / 3 : r2 = SIZE : c2 = Rgb(Red) : s2 = 3  'AI speed, tweak
 End Sub
 
-
 'seed new green circle
-Sub newfood
-  c = c0 : c0 = 0 : food : c0 = c 'erase old food
+Sub create_food()
+  draw_food(0) ' Erase old food
   x0 = Mm.HRes * Rnd()
   y0 = Mm.VRes * Rnd()
 End Sub
 
-
-'the introscreen
-Sub introscreen
+Sub intro_screen()
   Cls
   Text Mm.HRes / 2, Mm.VRes / 2 - 50, "CIRCLE ONE", "CM", 1, 2, Rgb(Yellow)
   Pause 2000
@@ -217,18 +111,81 @@ Sub introscreen
   Pause 2000
 End Sub
 
-Sub food
-  Circle x0 - 4, y0 - 2, r0, , , c0, c0
-  Circle x0 + 4, y0, r0, , , c0, c0
-  Line x0 - 3, y0, x0 + 5, y0 - 2 * r0, 1, c0
+Sub draw_food(c%)
+  Circle x0 - 4, y0 - 2, r0, , , c%, c%
+  Circle x0 + 4, y0, r0, , , c%, c%
+  Line x0 - 3, y0, x0 + 5, y0 - 2 * r0, 1, c%
 End Sub
 
-Sub eraseplayers
+Sub ctrl_player()
+  Local key%, p_old% = p1
+  Call ctrl$, key%
+  p1 = key% And (ctrl.DOWN Or ctrl.LEFT Or ctrl.RIGHT Or ctrl.UP)
+  If key% And ctrl.A Then s1 = 12 ' Turbo run, tweak for fun
+  If key% And ctrl.B Then Exit Sub
+  If Not p1 Then p1 = p_old%
+  If s1 > 5 Then Inc s1, -1 ' Slow player if turbo-running.
+End Sub
+
+Sub ctrl_ai()
+  Local AIx = Int((x0 - x2) / 2), AIy = Int((y0 - y2) / 2)
+  p2 = 0
+  If Abs(AIx) >= Abs(AIy) Then
+    p2 = p2 Or Choice(AIx < 0, ctrl.LEFT, ctrl.RIGHT)
+  EndIf
+  If Abs(AIx) <= Abs(AIy) Then
+    p2 = p2 Or Choice(AIy < 0, ctrl.UP, ctrl.DOWN)
+  EndIf
+End Sub
+
+Sub erase_players()
   Circle x1, y1, r1 + 10, , , 0, 0
   Circle x2, y2, r2 + 10, , , 0, 0
 End Sub
 
-Sub drawplayers
+Sub move_players()
+  v1 = 0 : v2 = 0 : dx1 = 0 : dx2 = 0 : dy1 = 0 : dy2 = 0
+
+'move players
+  If (p1 And ctrl.LEFT) Then Inc v1, 1 : Inc x1, -s1 : dx1 = -1
+  If (p1 And ctrl.RIGHT) Then Inc v1, 1 : Inc x1, s1 : dx1 = 1
+  If (p1 And ctrl.UP) Then Inc v1, 1 : Inc y1, -s1 : dy1 = -1
+  If (p1 And ctrl.DOWN) Then Inc v1, 1 : Inc y1, s1 : dy1 = 1
+  If (p2 And ctrl.LEFT) Then Inc v2, 1 : Inc x2, -s2 : dx2 = -1
+  If (p2 And ctrl.RIGHT) Then Inc v2, 1 : Inc x2, s2 : dx2 = 1
+  If (p2 And ctrl.UP) Then Inc v2, 1 : Inc y2, -s2 : dy2 = -1
+  If (p2 And ctrl.DOWN) Then Inc v2, 1 : Inc y2, s2 : dy2 = 1
+
+'allow wrap around
+  If x1 < 0 Then x1 = x1 + Mm.HRes
+  If x1 > Mm.HRes Then x1 = x1 - Mm.HRes
+  If y1 < 0 Then y1 = y1 + Mm.VRes
+  If y1 > Mm.VRes Then y1 = y1 - Mm.VRes
+End Sub
+
+Sub handle_collisions()
+'calculate distances
+  Local d12 = Sqr((x1 - x2) ^ 2 + (y1 - y2) ^ 2)
+  Local d10 = Sqr((x1 - x0) ^ 2 + (y1 - y0) ^ 2)
+  Local d20 = Sqr((x0 - x2) ^ 2 + (y0 - y2) ^ 2)
+
+'game rules, collision between players is punished
+'player who moves is culprit
+  If d12 < (r1 + r2) Then
+    If v1 > 0 Then r1 = r1 / 1.5
+    If v2 > 0 Then r2 = r2 / 1.5
+    r1 = Max(r1, 3)
+    r2 = Max(r2, 3)
+  EndIf
+
+'you eat, you grow....
+  If d10 < (r1 + r0) Then r1 = r1 * 2 : create_food()
+  If d20 < (r0 + r2) Then r2 = r2 * 2 : create_food()
+End Sub
+
+Sub draw_players()
+  Static counter = 0
+  Local dy, dx, v
   Inc counter, 1
 'if r1>50 then c1=rgb(cyan) else c1=rgb(blue)
 'draw player
@@ -283,14 +240,47 @@ Sub drawplayers
   EndIf
 End Sub
 
-'select IO direction for key input pins
-Sub set_io_pins
-  SetPin gp8, Din, PullUp  'down
-  SetPin gp9, Din, PullUp  'left
-  SetPin gp10, Din, PullUp 'up
-  SetPin gp11, Din, PullUp 'right
-  SetPin gp12, Din, PullUp 'select
-  SetPin gp13, Din, PullUp 'start
-  SetPin gp14, Din, PullUp 'B
-  SetPin gp15, Din, PullUp 'A
+Sub handle_winning()
+  If r1 > Mm.VRes / 2 Then
+    Text Mm.HRes / 2, Mm.VRes / 2, "Blue Wins", "CM", 1, 1, Rgb(Yellow)
+    u1 = u1 + 1
+    start_round()
+  EndIf
+  If r2 > Mm.VRes / 2 Then
+    Text Mm.HRes / 2, Mm.VRes / 2, "Red Wins", "CM", 1, 1, Rgb(Yellow)
+    u2 = u2 + 1
+    start_round()
+  EndIf
+End Sub
+
+Sub draw_score()
+  Text 0, 0, Str$(u1), "LT", 1, 1, Rgb(Blue)
+  Text Mm.HRes, 0, Str$(u2), "RT", 1, 1, Rgb(Red)
+End Sub
+
+'!dynamic_call break_cb
+Sub break_cb()
+  end_program(1)
+End Sub
+
+Sub end_program(break%)
+  If Not break% Then
+    Cls
+    Text Mm.HRes / 2, Mm.VRes / 2, "Bye", "CM", 1, 1, Rgb(Yellow)
+    FrameBuffer Copy F, N, B
+    Pause 2000
+  EndIf
+  If sys.is_device%("gamemite") Then
+    gamemite.end(break%)
+  Else
+    Page Write 0
+    Colour Rgb(White), Rgb(Black)
+    Cls
+    sys.restore_break()
+    ctrl.term_keys()
+    On Error Ignore
+    Call ctrl$, ctrl.CLOSE
+    On Error Abort
+    End
+  EndIf
 End Sub
