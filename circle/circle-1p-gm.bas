@@ -128,14 +128,10 @@ Sub ctrl_player()
 End Sub
 
 Sub ctrl_ai()
-  Local AIx = Int((x0 - x2) / 2), AIy = Int((y0 - y2) / 2)
+  Local AIx% = Int((x0 - x2) / 2), AIy% = Int((y0 - y2) / 2)
   p2 = 0
-  If Abs(AIx) >= Abs(AIy) Then
-    p2 = p2 Or Choice(AIx < 0, ctrl.LEFT, ctrl.RIGHT)
-  EndIf
-  If Abs(AIx) <= Abs(AIy) Then
-    p2 = p2 Or Choice(AIy < 0, ctrl.UP, ctrl.DOWN)
-  EndIf
+  If Abs(AIx%) > 1 Then p2 = p2 Or Choice(AIx% < 0, ctrl.LEFT, ctrl.RIGHT)
+  If Abs(AIy%) > 1 Then p2 = p2 Or Choice(AIy% < 0, ctrl.UP, ctrl.DOWN)
 End Sub
 
 Sub erase_players()
