@@ -131,28 +131,26 @@ Sub ctrl_ai()
 End Sub
 
 Sub erase_players()
-  Circle x(1), y(1), r(1) + 10, , , 0, 0
-  Circle x(2), y(2), r(2) + 10, , , 0, 0
+  Local i%
+  For i% = 1 To 2
+    Circle x(i%), y(i%), r(i%) + 10, , , 0, 0
+  Next
 End Sub
 
 Sub move_players()
-  v(1) = 0 : v(2) = 0 : dx(1) = 0 : dx(2) = 0 : dy(1) = 0 : dy(2) = 0
+  Local i%
+  For i% = 1 To 2
+    v(i%) = 0 : dx(i%) = 0 : dy(i%) = 0
 
-'move players
-  If (p(1) And ctrl.LEFT) Then Inc v(1), 1 : Inc x(1), -s(1) : dx(1) = -1
-  If (p(1) And ctrl.RIGHT) Then Inc v(1), 1 : Inc x(1), s(1) : dx(1) = 1
-  If (p(1) And ctrl.UP) Then Inc v(1), 1 : Inc y(1), -s(1) : dy(1) = -1
-  If (p(1) And ctrl.DOWN) Then Inc v(1), 1 : Inc y(1), s(1) : dy(1) = 1
-  If (p(2) And ctrl.LEFT) Then Inc v(2), 1 : Inc x(2), -s(2) : dx(2) = -1
-  If (p(2) And ctrl.RIGHT) Then Inc v(2), 1 : Inc x(2), s(2) : dx(2) = 1
-  If (p(2) And ctrl.UP) Then Inc v(2), 1 : Inc y(2), -s(2) : dy(2) = -1
-  If (p(2) And ctrl.DOWN) Then Inc v(2), 1 : Inc y(2), s(2) : dy(2) = 1
+    If p(i%) And ctrl.LEFT  Then Inc v(i%) : Inc x(i%), -s(i%) : dx(i%) = -1
+    If p(i%) And ctrl.RIGHT Then Inc v(i%) : Inc x(i%),  s(i%) : dx(i%) =  1
+    If p(i%) And ctrl.UP    Then Inc v(i%) : Inc y(i%), -s(i%) : dy(i%) = -1
+    If p(i%) And ctrl.DOWN  Then Inc v(i%) : Inc y(i%),  s(i%) : dy(i%) =  1
 
-'allow wrap around
-  If x(1) < 0 Then Inc x(1), Mm.HRes
-  If x(1) > Mm.HRes Then Inc x(1), - Mm.HRes
-  If y(1) < 0 Then Inc y(1), Mm.VRes
-  If y(1) > Mm.VRes Then Inc y(1), - Mm.VRes
+    'Allow wrap around
+    Inc x(i%), Choice(x(i%) < 0, Mm.HRes, Choice(x(i%) > Mm.HRes, -Mm.HRes, 0))
+    Inc y(i%), Choice(y(i%) < 0, Mm.VRes, Choice(y(i%) > Mm.VRes, -Mm.VRes, 0))
+  Next
 End Sub
 
 Sub handle_collisions()
@@ -176,73 +174,45 @@ Sub handle_collisions()
 End Sub
 
 Sub draw_players()
-  Static counter = 0
-  Local dyy, dxx, vv
-  Inc counter, 1
-'if r(1)>50 then c(1)=rgb(cyan) else c(1)=rgb(blue)
-'draw player
-  If v(1) > 0 Then
-'draw player 1 body
-    Circle x(1), y(1), r(1), , , c(1), c(1)
-'eyes when moving
-    vv = 0.7 + (v(1) = 1) * 0.3 'sqrt 2 if 45 degrees
-    dyy = 6 * dy(1) : dxx = 6 * dx(1)
-    Circle x(1) + vv * ((dx(1) * r(1)) - dyy), y(1) + vv * ((dy(1) * r(1)) + dxx), 5, , , cw, cw
-    Circle x(1) + vv * ((dx(1) * r(1)) + dyy), y(1) + vv * ((dy(1) * r(1)) - dxx), 5, , , cw, cw
-    Circle x(1) + vv * ((dx(1) * (r(1) + 2) - dyy)), y(1) + vv * ((dy(1) * (r(1) + 2)) + dxx), 2, , , 9, 9
-    Circle x(1) + vv * ((dx(1) * (r(1) + 2) + dyy)), y(1) + vv * ((dy(1) * (r(1) + 2)) - dxx), 2, , , 0, 0
-  Else
-'draw player 1 body
-    Circle x(1), y(1), r(1), , , c(1), c(1)
-'not moving, eyes sleepy
-    Circle x(1) + 6, y(1) + 2, 5, , , cw, cw
-    Circle x(1) - 6, y(1) + 2, 5, , , cw, cw
-    Circle x(1) + 6, y(1) - 1, 5, , , c(1), c(1)
-    If counter And 28 Then
-      Circle x(1) - 6, y(1) + 4, 2, , , 0, 0
+  Static counter% = 0
+  Local i%, dyy, dxx, vv
+  Inc counter%, 1
+  For i% = 1 To 2
+    ' Draw body.
+    Circle x(i%), y(i%), r(i%), , , c(i%), c(i%)
+    If v(i%) > 0 Then
+      ' Draw eyes when moving.
+      vv = 0.7 + (v(i%) = 1) * 0.3 'sqrt 2 if 45 degrees
+      dyy = 6 * dy(i%) : dxx = 6 * dx(i%)
+      Circle x(i%) + vv * ((dx(i%) * r(i%)) - dyy), y(i%) + vv * ((dy(i%) * r(i%)) + dxx), 5, , , cw, cw
+      Circle x(i%) + vv * ((dx(i%) * r(i%)) + dyy), y(i%) + vv * ((dy(i%) * r(i%)) - dxx), 5, , , cw, cw
+      Circle x(i%) + vv * ((dx(i%) * (r(i%) + 2) - dyy)), y(i%) + vv * ((dy(i%) * (r(i%) + 2)) + dxx), 2, , , 9, 9
+      Circle x(i%) + vv * ((dx(i%) * (r(i%) + 2) + dyy)), y(i%) + vv * ((dy(i%) * (r(i%) + 2)) - dxx), 2, , , 0, 0
     Else
-      Circle x(1) - 6, y(1) - 1, 5, , , c(1), c(1)
+      ' Draw eyes when sleepy.
+      Circle x(i%) + 6, y(i%) + 2, 5, , , cw, cw
+      Circle x(i%) - 6, y(i%) + 2, 5, , , cw, cw
+      Circle x(i%) + 6, y(i%) - 1, 5, , , c(i%), c(i%)
+      If (counter% + Choice(i% = 1, 0, 14)) And Choice(i% = 1, 28, 30) Then
+        Circle x(i%) - 6, y(i%) + 4, 2, , , 0, 0
+      Else
+        Circle x(i%) - 6, y(i%) - 1, 5, , , c(i%), c(i%)
+      EndIf
     EndIf
-  EndIf
-
-'if r(2)>50 then c(1)=rgb(cyan) else c(1)=rgb(blue)
-'draw player
-  If v(2) > 0 Then
-'draw player 1 body
-    Circle x(2), y(2), r(2), , , c(2), c(2)
-'eyes when moving
-    vv = 0.7 + (v(2) = 1) * 0.3 'sqrt 2 if 45 degrees
-    dyy = 6 * dy(2) : dxx = 6 * dx(2)
-    Circle x(2) + vv * ((dx(2) * r(2)) - dyy), y(2) + vv * ((dy(2) * r(2)) + dxx), 5, , , cw, cw
-    Circle x(2) + vv * ((dx(2) * r(2)) + dyy), y(2) + vv * ((dy(2) * r(2)) - dxx), 5, , , cw, cw
-    Circle x(2) + vv * ((dx(2) * (r(2) + 2) - dyy)), y(2) + vv * ((dy(2) * (r(2) + 2)) + dxx), 2, , , 9, 9
-    Circle x(2) + vv * ((dx(2) * (r(2) + 2) + dyy)), y(2) + vv * ((dy(2) * (r(2) + 2)) - dxx), 2, , , 0, 0
-  Else
-'draw player 1 body
-    Circle x(2), y(2), r(2), , , c(2), c(2)
-'not moving, eyes sleepy
-    Circle x(2) + 6, y(2) + 2, 5, , , cw, cw
-    Circle x(2) - 6, y(2) + 2, 5, , , cw, cw
-    Circle x(2) + 6, y(2) - 1, 5, , , c(2), c(2)
-    If counter + 14 And 30 Then
-      Circle x(2) - 6, y(2) - 1, 5, , , c(2), c(2)
-    Else
-      Circle x(2) - 6, y(2) + 4, 2, , , 0, 0
-    EndIf
-  EndIf
+  Next
 End Sub
 
 Sub handle_winning()
-  If r(1) > Mm.VRes / 2 Then
-    Text Mm.HRes / 2, Mm.VRes / 2, "Blue Wins", "CM", 1, 1, Rgb(Yellow)
-    Inc u(1)
-    start_round()
-  EndIf
-  If r(2) > Mm.VRes / 2 Then
-    Text Mm.HRes / 2, Mm.VRes / 2, "Red Wins", "CM", 1, 1, Rgb(Yellow)
-    Inc u(2)
-    start_round()
-  EndIf
+  Local i%, s$
+  For i% = 1 To 2
+    If r(i%) > Mm.VRes / 2 Then
+      s$ = Choice(i% = 1, "Blue", "Red") + " Wins"
+      Text Mm.HRes / 2, Mm.VRes / 2, s$, "CM", 1, 1, Rgb(Yellow)
+      Inc u(i%)
+      start_round()
+      Exit For
+    EndIf
+  Next
 End Sub
 
 Sub draw_score()
