@@ -149,10 +149,10 @@ Sub move_players()
   If (p(2) And ctrl.DOWN) Then Inc v(2), 1 : Inc y(2), s(2) : dy(2) = 1
 
 'allow wrap around
-  If x(1) < 0 Then x(1) = x(1) + Mm.HRes
-  If x(1) > Mm.HRes Then x(1) = x(1) - Mm.HRes
-  If y(1) < 0 Then y(1) = y(1) + Mm.VRes
-  If y(1) > Mm.VRes Then y(1) = y(1) - Mm.VRes
+  If x(1) < 0 Then Inc x(1), Mm.HRes
+  If x(1) > Mm.HRes Then Inc x(1), - Mm.HRes
+  If y(1) < 0 Then Inc y(1), Mm.VRes
+  If y(1) > Mm.VRes Then Inc y(1), - Mm.VRes
 End Sub
 
 Sub handle_collisions()
@@ -235,12 +235,12 @@ End Sub
 Sub handle_winning()
   If r(1) > Mm.VRes / 2 Then
     Text Mm.HRes / 2, Mm.VRes / 2, "Blue Wins", "CM", 1, 1, Rgb(Yellow)
-    u(1) = u(1) + 1
+    Inc u(1)
     start_round()
   EndIf
   If r(2) > Mm.VRes / 2 Then
     Text Mm.HRes / 2, Mm.VRes / 2, "Red Wins", "CM", 1, 1, Rgb(Yellow)
-    u(2) = u(2) + 1
+    Inc u(2)
     start_round()
   EndIf
 End Sub
