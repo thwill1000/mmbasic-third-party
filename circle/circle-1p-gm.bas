@@ -21,7 +21,7 @@ Dim dx(2), dy(2) ' Direction of movement in x & y directions.
 Dim p(2) ' Controller value; boolean OR of ctrl.DOWN|LEFT|RIGHT|UP.
 Dim r(2) ' Radius.
 Dim s(2) ' Speed.
-Dim u(2) ' Score.
+Dim score(2)
 Dim v(2) ' > 0 if player moving.
 Dim x(2), y(2) ' Coordinates.
 
@@ -59,7 +59,7 @@ end_program()
 
 Sub start_round(first%)
   If first% Then
-    u(1) = 0 : u(2) = 0
+    score(1) = 0 : score(2) = 0
   Else
     Text Mm.HRes / 2, 30 + Mm.VRes / 2, "A=continue, B=stop", "CM", 1, 1, Rgb(Yellow)
     FrameBuffer Copy f, n, b
@@ -207,7 +207,7 @@ Sub handle_winning()
     If r(i%) > Mm.VRes / 2 Then
       s$ = Choice(i% = 1, "Blue", "Red") + " Wins"
       Text Mm.HRes / 2, Mm.VRes / 2, s$, "CM", 1, 1, Rgb(Yellow)
-      Inc u(i%)
+      Inc score(i%)
       start_round()
       Exit For
     EndIf
@@ -215,8 +215,8 @@ Sub handle_winning()
 End Sub
 
 Sub draw_score()
-  Text 0, 0, Str$(u(1)), "LT", 1, 1, Rgb(Blue)
-  Text Mm.HRes, 0, Str$(u(2)), "RT", 1, 1, Rgb(Red)
+  Text 0, 0, Str$(score(1)), "LT", 1, 1, Rgb(Blue)
+  Text Mm.HRes, 0, Str$(score(2)), "RT", 1, 1, Rgb(Red)
 End Sub
 
 '!dynamic_call break_cb
