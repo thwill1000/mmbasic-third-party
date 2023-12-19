@@ -251,10 +251,10 @@ Sub draw_players()
       ' Draw eyes when moving
       vv = 0.7 + (v(i%) = 1) * 0.3 'sqrt 2 if 45 degrees
       dyy = 6 * dy(i%) : dxx = 6 * dx(i%)
-      Circle x(i%) + vv * ((dx(i%) * r(i%)) - dyy), y(i%) + vv * ((dy(i%) * r(i%)) + dxx), 5, , , CW, CW
-      Circle x(i%) + vv * ((dx(i%) * r(i%)) + dyy), y(i%) + vv * ((dy(i%) * r(i%)) - dxx), 5, , , CW, CW
-      Circle x(i%) + vv * ((dx(i%) * (r(i%) + 2) - dyy)), y(i%) + vv * ((dy(i%) * (r(i%) + 2)) + dxx), 2, , , 9, 9
-      Circle x(i%) + vv * ((dx(i%) * (r(i%) + 2) + dyy)), y(i%) + vv * ((dy(i%) * (r(i%) + 2)) - dxx), 2, , , 0, 0
+      draw_circle(x(i%) + vv * ((dx(i%) * r(i%)) - dyy), y(i%) + vv * ((dy(i%) * r(i%)) + dxx), 5, CW)
+      draw_circle(x(i%) + vv * ((dx(i%) * r(i%)) + dyy), y(i%) + vv * ((dy(i%) * r(i%)) - dxx), 5, CW)
+      draw_circle(x(i%) + vv * ((dx(i%) * (r(i%) + 2) - dyy)), y(i%) + vv * ((dy(i%) * (r(i%) + 2)) + dxx), 2)
+      draw_circle(x(i%) + vv * ((dx(i%) * (r(i%) + 2) + dyy)), y(i%) + vv * ((dy(i%) * (r(i%) + 2)) - dxx), 2)
     Else
       ' Draw eyes when sleepy
       Circle x(i%) + 6, y(i%) + 2, 5, , , CW, CW
@@ -267,6 +267,18 @@ Sub draw_players()
       EndIf
     EndIf
   Next
+End Sub
+
+' Draws circle whilst working around strange clipping behaviour when circle
+' goes off screen.
+Sub draw_circle(x%, y%, r%, col%)
+  Select Case x%
+    Case < 0 - r%, >= Mm.HRes + r%: Exit Sub
+  End Select
+  Select Case y%
+    Case < 0 - r%, >= Mm.VRes + r%: Exit Sub
+  End Select
+  Circle x%, y%, r%, , , col%, col%
 End Sub
 
 ' @return  0  to return to the intro screen
