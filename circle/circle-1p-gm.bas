@@ -46,7 +46,8 @@ Do
   start_round()
   Do
     t% = Timer + 100
-    draw_food(c(0))
+    If Not c(0) Then create_food()
+    If c(0) Then draw_food(c(0))
     ctrl_player()
     ctrl_ai()
     erase_players()
@@ -72,10 +73,16 @@ Sub start_round()
   x(2) = 2 * Mm.HRes / 3 : y(2) = 2 * Mm.VRes / 3 : r(2) = SIZE : c(2) = Rgb(Red) : s(2) = 3  'AI speed, tweak
 End Sub
 
+' Creates new food in a random location. If the result is too
+' close to a player then do not create food on this call.
 Sub create_food()
-  draw_food(0) ' Erase old food
   x(0) = Mm.HRes * Rnd()
   y(0) = Mm.VRes * Rnd()
+  Const d10 = Sqr((x(1) - x(0)) ^ 2 + (y(1) - y(0)) ^ 2)
+  Const d20 = Sqr((x(2) - x(0)) ^ 2 + (y(2) - y(0)) ^ 2)
+  If d10 < (r(1) + r(0) + 20) Then Exit Sub
+  If d20 < (r(0) + r(2) + 20) Then Exit Sub
+  c(0) = Rgb(Green)
 End Sub
 
 Sub show_intro()
@@ -145,9 +152,9 @@ End Sub
 
 Sub handle_collisions()
   ' Calculate distances
-  Local d12 = Sqr((x(1) - x(2)) ^ 2 + (y(1) - y(2)) ^ 2)
-  Local d10 = Sqr((x(1) - x(0)) ^ 2 + (y(1) - y(0)) ^ 2)
-  Local d20 = Sqr((x(0) - x(2)) ^ 2 + (y(0) - y(2)) ^ 2)
+  Const d12 = Sqr((x(1) - x(2)) ^ 2 + (y(1) - y(2)) ^ 2)
+  Const d10 = Sqr((x(1) - x(0)) ^ 2 + (y(1) - y(0)) ^ 2)
+  Const d20 = Sqr((x(2) - x(0)) ^ 2 + (y(2) - y(0)) ^ 2)
 
   ' Game rules:
   '  - collision between players is punished
@@ -160,8 +167,16 @@ Sub handle_collisions()
   EndIf
 
   ' You eat, you grow
-  If d10 < (r(1) + r(0)) Then r(1) = r(1) * 2 : create_food()
-  If d20 < (r(0) + r(2)) Then r(2) = r(2) * 2 : create_food()
+  If c(0) Then
+    If d10 < (r(1) + r(0)) Then eat_food(1)
+    If d20 < (r(0) + r(2)) Then eat_food(2)
+  EndIf
+End Sub
+
+Sub eat_food(p%)
+  r(p%) = r(p%) * 2
+  draw_food(0)
+  c(0) = 0
 End Sub
 
 Sub draw_players()
