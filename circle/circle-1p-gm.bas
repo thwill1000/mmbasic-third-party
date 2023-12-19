@@ -65,24 +65,31 @@ Do
 Loop
 Error "Unexpected program end"
 
-Sub start_round()
-  Cls
-  Const SIZE = Mm.HRes / 40
-  x(0) = Mm.HRes / 2 : y(0) = Mm.VRes / 3 : r(0) = SIZE : c(0) = Rgb(Green)
-  x(1) = Mm.HRes / 3 : y(1) = 2 * Mm.VRes / 3 : r(1) = SIZE : c(1) = Rgb(Blue) : s(1) = 5  'player speed, tweak
-  x(2) = 2 * Mm.HRes / 3 : y(2) = 2 * Mm.VRes / 3 : r(2) = SIZE : c(2) = Rgb(Red) : s(2) = 3  'AI speed, tweak
+'!dynamic_call break_cb
+Sub break_cb()
+  end_program(1)
 End Sub
 
-' Creates new food in a random location. If the result is too
-' close to a player then do not create food on this call.
-Sub create_food()
-  x(0) = Mm.HRes * Rnd()
-  y(0) = Mm.VRes * Rnd()
-  Const d10 = Sqr((x(1) - x(0)) ^ 2 + (y(1) - y(0)) ^ 2)
-  Const d20 = Sqr((x(2) - x(0)) ^ 2 + (y(2) - y(0)) ^ 2)
-  If d10 < (r(1) + r(0) + 20) Then Exit Sub
-  If d20 < (r(0) + r(2) + 20) Then Exit Sub
-  c(0) = Rgb(Green)
+Sub end_program(break%)
+  If Not break% Then
+    Cls
+    Text Mm.HRes / 2, Mm.VRes / 2, "Bye", "CM", 8, 1, Rgb(Yellow)
+    FrameBuffer Copy F, N, B
+    Pause 2000
+  EndIf
+  If sys.is_device%("gamemite") Then
+    gamemite.end(break%)
+  Else
+    Page Write 0
+    Colour Rgb(White), Rgb(Black)
+    Cls
+    sys.restore_break()
+    ctrl.term_keys()
+    On Error Ignore
+    Call ctrl$, ctrl.CLOSE
+    On Error Abort
+    End
+  EndIf
 End Sub
 
 Sub show_intro()
@@ -103,6 +110,60 @@ Data "", 1, Rgb(White)
 Data "Press START to play", 1, Rgb(Yellow)
 Data "or SELECT to quit", 1, Rgb(Yellow)
 Data "", 0, 0
+
+' Reads and displays text from DATA statements
+'
+' @param   label$     Label for the DATA to read
+' @param   top%       Initial y-coordinate
+' @param   key_mask%  Key/button mask for exiting
+' @param   msec%      Pause duration between showing each line of text
+' @return  the controller code for the key/button pressed
+Function display_text%(label$, top%, key_mask%, msec%)
+  Const _key_mask% = Choice(key_mask%, key_mask%, ctrl.SELECT Or ctrl.START)
+  Local col%, h%, s$, sz%, t%, w%, y% = top%
+  Local k% = Not msec%
+  Restore label$
+  ctrl.wait_until_idle(ctrl$)
+  Do
+    Read s$, sz%, col%
+    If Not sz% Then Exit Do
+    w% = Len(s$) * 8 * sz% + 4
+    h% = 8 * sz% + 4
+    If Len(s$) Then Box (Mm.HRes - w%) / 2, y% - h% / 2, w%, h%, 1, 0, 0
+    Text Mm.HRes / 2, y%, s$, "CM", 8, sz%, col% : Inc y%, 17
+    If k% Then Continue Do ' Pressing a key interrupts the PAUSE-ing
+    FrameBuffer Wait
+    FrameBuffer Copy F, N
+    t% = Timer + msec%
+    Do While (Timer < t%) And (Not k%) : Call ctrl$, k% : Loop
+  Loop
+  FrameBuffer Wait
+  FrameBuffer Copy F, N
+  ctrl.wait_until_idle(ctrl$)
+  Do : Call ctrl$, k% : Loop Until k% And _key_mask%
+  ctrl.wait_until_idle(ctrl$)
+  display_text% = k%
+End Function
+
+Sub start_round()
+  Cls
+  Const SIZE = Mm.HRes / 40
+  x(0) = Mm.HRes / 2 : y(0) = Mm.VRes / 3 : r(0) = SIZE : c(0) = Rgb(Green)
+  x(1) = Mm.HRes / 3 : y(1) = 2 * Mm.VRes / 3 : r(1) = SIZE : c(1) = Rgb(Blue) : s(1) = 5  'player speed, tweak
+  x(2) = 2 * Mm.HRes / 3 : y(2) = 2 * Mm.VRes / 3 : r(2) = SIZE : c(2) = Rgb(Red) : s(2) = 3  'AI speed, tweak
+End Sub
+
+' Creates new food in a random location. If the result is too
+' close to a player then do not create food on this call.
+Sub create_food()
+  x(0) = Mm.HRes * Rnd()
+  y(0) = Mm.VRes * Rnd()
+  Const d10 = Sqr((x(1) - x(0)) ^ 2 + (y(1) - y(0)) ^ 2)
+  Const d20 = Sqr((x(2) - x(0)) ^ 2 + (y(2) - y(0)) ^ 2)
+  If d10 < (r(1) + r(0) + 20) Then Exit Sub
+  If d20 < (r(0) + r(2) + 20) Then Exit Sub
+  c(0) = Rgb(Green)
+End Sub
 
 Sub draw_food(c%)
   Circle x(0) - 4, y(0) - 2, r(0), , , c%, c%
@@ -264,67 +325,6 @@ Data "", 1, 0
 Data "Press START to continue", 1, Rgb(Yellow)
 Data "or SELECT to quit", 1, Rgb(Yellow)
 Data "", 0, 0
-
-' Reads and displays text from DATA statements
-'
-' @param   label$     Label for the DATA to read
-' @param   top%       Initial y-coordinate
-' @param   key_mask%  Key/button mask for exiting
-' @param   msec%      Pause duration between showing each line of text
-' @return  the controller code for the key/button pressed
-Function display_text%(label$, top%, key_mask%, msec%)
-  Const _key_mask% = Choice(key_mask%, key_mask%, ctrl.SELECT Or ctrl.START)
-  Local col%, h%, s$, sz%, t%, w%, y% = top%
-  Local k% = Not msec%
-  Restore label$
-  ctrl.wait_until_idle(ctrl$)
-  Do
-    Read s$, sz%, col%
-    If Not sz% Then Exit Do
-    w% = Len(s$) * 8 * sz% + 4
-    h% = 8 * sz% + 4
-    If Len(s$) Then Box (Mm.HRes - w%) / 2, y% - h% / 2, w%, h%, 1, 0, 0
-    Text Mm.HRes / 2, y%, s$, "CM", 8, sz%, col% : Inc y%, 17
-    If k% Then Continue Do ' Pressing a key interrupts the PAUSE-ing
-    FrameBuffer Wait
-    FrameBuffer Copy F, N
-    t% = Timer + msec%
-    Do While (Timer < t%) And (Not k%) : Call ctrl$, k% : Loop
-  Loop
-  FrameBuffer Wait
-  FrameBuffer Copy F, N
-  ctrl.wait_until_idle(ctrl$)
-  Do : Call ctrl$, k% : Loop Until k% And _key_mask%
-  ctrl.wait_until_idle(ctrl$)
-  display_text% = k%
-End Function
-
-'!dynamic_call break_cb
-Sub break_cb()
-  end_program(1)
-End Sub
-
-Sub end_program(break%)
-  If Not break% Then
-    Cls
-    Text Mm.HRes / 2, Mm.VRes / 2, "Bye", "CM", 8, 1, Rgb(Yellow)
-    FrameBuffer Copy F, N, B
-    Pause 2000
-  EndIf
-  If sys.is_device%("gamemite") Then
-    gamemite.end(break%)
-  Else
-    Page Write 0
-    Colour Rgb(White), Rgb(Black)
-    Cls
-    sys.restore_break()
-    ctrl.term_keys()
-    On Error Ignore
-    Call ctrl$, ctrl.CLOSE
-    On Error Abort
-    End
-  EndIf
-End Sub
 
 ' Konami Style Font (Martin H.)
 ' Font type    : Full (95 ChArACtErs)
