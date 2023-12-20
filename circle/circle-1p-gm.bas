@@ -1,5 +1,4 @@
-'_Circle-One for Game*Mite 5.07.08
-'_An original game for the PicoMite VGA and Game*Mite
+'_Circle-One for Game*Mite (PicoMite 5.08.00)
 ' Copyright (c) 2023 @Volhout
 ' Titivated for Game*Mite by Thomas Hugo Williams
 
@@ -7,6 +6,9 @@ Option Base 0
 Option Default Float
 Option Explicit On
 
+Const VERSION = 101300 ' 1.1.0
+
+'!define NO_INCLUDE_GUARDS
 #Include "../splib/system.inc"
 #Include "../splib/ctrl.inc"
 #Include "../splib/gamemite.inc"
@@ -14,13 +16,15 @@ Option Explicit On
 sys.override_break("break_cb")
 
 Const CURRENT_PATH$ = Choice(Mm.Info(Path) <> "NONE", Mm.Info(Path), Cwd$)
-Const CW = Rgb(White)
+Const CB = Rgb(Blue), CC= Rgb(Cyan),   CG = Rgb(Green)
+Const CR = Rgb(Red),  CW = Rgb(White), CY = Rgb(Yellow)
+Const VERSION_STRING$ = "Game*Mite Version " + sys.format_version$(VERSION)
 
 ' Index 0 is food, 1 is player 1, 2 is player 2
 Dim c(2) ' Colour
 Dim dx(2), dy(2) ' Direction of movement in x & y directions
 Dim pause_flag%  ' = 1 then pause the game
-Dim p(2) ' Controller value; boolean OR of ctrl.DOWN|LEFT|RIGHT|UP
+Dim p(2) ' Player input; bitset of ctrl.DOWN|LEFT|RIGHT|UP
 Dim r(2) ' Radius
 Dim s(2) ' Speed
 Dim score(2)
@@ -73,15 +77,20 @@ End Sub
 Sub end_program(break%)
   If Not break% Then
     Cls
-    Text Mm.HRes / 2, Mm.VRes / 2, "Bye", "CM", 8, 1, Rgb(Yellow)
+    Text Mm.HRes / 2, Mm.VRes / 2 - 10, "Bye!", "CM", 8, 2, CY
     FrameBuffer Copy F, N, B
     Pause 2000
   EndIf
-  If sys.is_device%("gamemite") Then
+'!if defined(GAMEMITE)
+  '!uncomment_if true
+  ' gamemite.end(break%)
+  '!endif
+'!else
+  If sys.is_platform%("gamemite") Then
     gamemite.end(break%)
   Else
     Page Write 0
-    Colour Rgb(White), Rgb(Black)
+    Colour CW, 0
     Cls
     sys.restore_break()
     ctrl.term_keys()
@@ -90,26 +99,28 @@ Sub end_program(break%)
     On Error Abort
     End
   EndIf
+'!endif
 End Sub
 
 Sub show_intro()
   Cls
   Const k% = display_text%("intro_data", Mm.VRes / 2 - 80, 0, 1000)
-  If k% = ctrl.SELECT Then gamemite.end()
+  If k% = ctrl.SELECT Then end_program()
 End Sub
 
 intro_data:
-Data "CIRCLE ONE", 2, Rgb(Yellow)
-Data "By @Volhout 2023", 1, Rgb(Cyan)
-Data "", 1, Rgb(White)
-Data "Eat apples to grow and win", 1, Rgb(White)
-Data "Use arrow keys to steer", 1, Rgb(White)
-Data "A to sprint, START to pause", 1, Rgb(White)
-Data "Avoid collisions !!", 1, Rgb(White)
-Data "", 1, Rgb(White)
-Data "Press START to play", 1, Rgb(Yellow)
-Data "or SELECT to quit", 1, Rgb(Yellow)
-Data "", 0, 0
+Data "CIRCLE ONE", 2, CY, 17
+Data "By @Volhout 2023", 1, CC, 13
+Data "<version>", 1, CG, 17
+Data "", 1, CW, 17
+Data "Eat apples to grow and win", 1, CW, 17
+Data "Use arrow keys to steer", 1, CW, 17
+Data "A to sprint, START to pause", 1, CW, 17
+Data "Avoid collisions !!", 1, CW, 17
+Data "", 1, CW, 17
+Data "Press START to play", 1, CY, 17
+Data "or SELECT to quit", 1, CY, 17
+Data "", 0, 0, 0
 
 ' Reads and displays text from DATA statements
 '
@@ -120,17 +131,18 @@ Data "", 0, 0
 ' @return  the controller code for the key/button pressed
 Function display_text%(label$, top%, key_mask%, msec%)
   Const _key_mask% = Choice(key_mask%, key_mask%, ctrl.SELECT Or ctrl.START)
-  Local col%, h%, s$, sz%, t%, w%, y% = top%
+  Local col%, dy%, h%, s$, sz%, t%, w%, y% = top%
   Local k% = Not msec%
   Restore label$
   ctrl.wait_until_idle(ctrl$)
   Do
-    Read s$, sz%, col%
+    Read s$, sz%, col%, dy%
     If Not sz% Then Exit Do
+    If s$ = "<version>" Then s$ = VERSION_STRING$
     w% = Len(s$) * 8 * sz% + 4
     h% = 8 * sz% + 4
     If Len(s$) Then Box (Mm.HRes - w%) / 2, y% - h% / 2, w%, h%, 1, 0, 0
-    Text Mm.HRes / 2, y%, s$, "CM", 8, sz%, col% : Inc y%, 17
+    Text Mm.HRes / 2, y%, s$, "CM", 8, sz%, col% : Inc y%, dy%
     If k% Then Continue Do ' Pressing a key interrupts the PAUSE-ing
     FrameBuffer Wait
     FrameBuffer Copy F, N
@@ -148,9 +160,9 @@ End Function
 Sub start_round()
   Cls
   Const SIZE = Mm.HRes / 40
-  x(0) = Mm.HRes / 2 : y(0) = Mm.VRes / 3 : r(0) = SIZE : c(0) = Rgb(Green)
-  x(1) = Mm.HRes / 3 : y(1) = 2 * Mm.VRes / 3 : r(1) = SIZE : c(1) = Rgb(Blue) : s(1) = 5  'player speed, tweak
-  x(2) = 2 * Mm.HRes / 3 : y(2) = 2 * Mm.VRes / 3 : r(2) = SIZE : c(2) = Rgb(Red) : s(2) = 3  'AI speed, tweak
+  x(0) = Mm.HRes / 2 : y(0) = Mm.VRes / 3 : r(0) = SIZE : c(0) = CG
+  x(1) = Mm.HRes / 3 : y(1) = 2 * Mm.VRes / 3 : r(1) = SIZE : c(1) = CB : s(1) = 5  'player speed, tweak
+  x(2) = 2 * Mm.HRes / 3 : y(2) = 2 * Mm.VRes / 3 : r(2) = SIZE : c(2) = CR : s(2) = 3  'AI speed, tweak
 End Sub
 
 ' Creates new food in a random location. If the result is too
@@ -162,7 +174,7 @@ Sub create_food()
   Const d20 = Sqr((x(2) - x(0)) ^ 2 + (y(2) - y(0)) ^ 2)
   If d10 < (r(1) + r(0) + 20) Then Exit Sub
   If d20 < (r(0) + r(2) + 20) Then Exit Sub
-  c(0) = Rgb(Green)
+  c(0) = CG
 End Sub
 
 Sub draw_food(c%)
@@ -301,22 +313,22 @@ Function handle_winning%()
 End Function
 
 win_1_data:
-Data "Blue Wins", 2, Rgb(Yellow)
-Data "", 1, 0
-Data "Press START to continue", 1, Rgb(Yellow)
-Data "or SELECT to quit", 1, Rgb(Yellow)
-Data "", 0, 0
+Data "Blue Wins", 2, CY, 17
+Data "", 1, 0, 17
+Data "Press START to continue", 1, CY, 17
+Data "or SELECT to quit", 1, CY, 17
+Data "", 0, 0, 0
 
 win_2_data:
-Data "Red Wins", 2, Rgb(Yellow)
-Data "", 1, 0
-Data "Press START to continue", 1, Rgb(Yellow)
-Data "or SELECT to quit", 1, Rgb(Yellow)
-Data "", 0, 0
+Data "Red Wins", 2, CY, 17
+Data "", 1, 0, 17
+Data "Press START to continue", 1, CY, 17
+Data "or SELECT to quit", 1, CY, 17
+Data "", 0, 0, 0
 
 Sub draw_score()
-  Text 0, 0, Str$(score(1)), "LT", 8, 2, Rgb(Blue)
-  Text Mm.HRes, 0, Str$(score(2)), "RT", 8, 2, Rgb(Red)
+  Text 0, 0, Str$(score(1)), "LT", 8, 2, CB
+  Text Mm.HRes, 0, Str$(score(2)), "RT", 8, 2, CR
 End Sub
 
 ' @return  0  to return to the intro screen
@@ -332,11 +344,11 @@ Function handle_pause%()
 End Function
 
 pause_data:
-Data "PAUSED", 2, Rgb(Yellow)
-Data "", 1, 0
-Data "Press START to continue", 1, Rgb(Yellow)
-Data "or SELECT to quit", 1, Rgb(Yellow)
-Data "", 0, 0
+Data "PAUSED", 2, CY, 17
+Data "", 1, 0, 17
+Data "Press START to continue", 1, CY, 17
+Data "or SELECT to quit", 1, CY, 17
+Data "", 0, 0, 0
 
 ' Konami Style Font (Martin H.)
 ' Font type    : Full (95 ChArACtErs)

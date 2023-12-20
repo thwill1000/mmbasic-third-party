@@ -49,17 +49,25 @@ Const VERSION = 101302 ' 1.1.2
 
 sys.override_break("break_cb")
 
-If sys.is_device%("pmvga") Then
+'!if defined(GAMEMITE)
+  '!uncomment_if true
+  ' Dim CONTROLLERS$(1) = ("keys_cursor_ext", "ctrl.gamemite")
+  ' Const VERSION_STRING$ = "Game*Mite Version " + sys.format_version$(VERSION)
+  '!endif
+'!else
+If sys.is_platform%("pmvga") Then
   Dim CONTROLLERS$(2) = ("keys_cursor_ext", "nes_a", "atari_a")
-ElseIf sys.is_device%("gamemite") Then
+ElseIf sys.is_platform%("gamemite") Then
   Dim CONTROLLERS$(1) = ("keys_cursor_ext", "ctrl.gamemite")
-ElseIf sys.is_device%("pm*", "mmb4w") Then
+ElseIf sys.is_platform%("pm*", "mmb4w") Then
   Dim CONTROLLERS$(1) = ("keys_cursor_ext", "keys_cursor_ext")
-ElseIf sys.is_device%("cmm2*") Then
+ElseIf sys.is_platform%("cmm2*") Then
   Dim CONTROLLERS$(2) = ("keys_cursor_ext", "wii_classic_3", "atari_dx")
 Else
   Error "Unsupported device: " + Mm.Device$
 EndIf
+Const VERSION_STRING$ = "Version " + sys.format_version$(VERSION)
+'!endif
 
 ctrl.init_keys()
 
@@ -265,9 +273,19 @@ Sub intro()
   Box 0, 30, 320, 210, , 0, 0
   inc_score(0, 1)
 
-  Local txt$ = "Press SPACE To play"
-  If sys.is_device%("gamemite") Then txt$ = "Press START to play"
-  If sys.is_device%("cmm2*", "pmvga") Then txt$ = "Press START, FIRE or SPACE to play"
+'!if defined(GAMEMITE)
+  '!uncomment_if true
+  ' Const txt$ = "Press START to play"
+  '!endif
+'!else
+  If sys.is_platform%("gamemite") Then
+    Const txt$ = "Press START to play"
+  ElseIf sys.is_platform%("cmm2*", "pmvga") Then
+    Const txt$ = "Press START, FIRE or SPACE to play"
+  Else
+    Const txt$ = "Press SPACE To play"
+  EndIf
+'!endif
   Text 160, 216, txt$, CT, , , Rgb(Green)
   Box 50, 229, 220, 1, , , Rgb(Green)
 
@@ -297,12 +315,12 @@ Sub intro()
 
   If Not key% Then key% = poll_ctrl%(600)
 
-  If sys.is_device%("pm*") Then Font 7
+  If InStr(Mm.Device$, "PicoMite") Then Font 7
   Text 160, y%, "(C) 1978 BY TAITO", CT
   Inc y%, Mm.Info(FontHeight) + 1
-  Text 160, y%, Choice(sys.is_device%("gamemite"), "GAMEMITE", "PICOMITE-VGA") + " VERSION", CT
+  Text 160, y%, UCase$(VERSION_STRING$), CT
   Inc y%, Mm.Info(FontHeight) + 1
-  Text 160, y%, "2022 BY MARTIN HERHAUS", CT
+  Text 160, y%, "2022-2023 BY MARTIN HERHAUS", CT
   Font 1
   If Not key% Then key% = poll_ctrl%(2000)
 
@@ -392,7 +410,12 @@ Sub break_cb()
 End Sub
 
 Sub end_program(break%)
-  If sys.is_device%("gamemite") Then
+'!if defined(GAMEMITE)
+  '!uncomment_if true
+  ' gamemite.end(break%)
+  '!endif
+'!else
+  If sys.is_platform%("gamemite") Then
     gamemite.end(break%)
   Else
     Page Write 0
@@ -405,6 +428,7 @@ Sub end_program(break%)
     On Error Abort
     End
   EndIf
+'!endif
 End Sub
 
 Sub start_ufo()
