@@ -38,17 +38,25 @@ Const VERSION = 101301 ' 1.1.1
 
 sys.override_break("break_cb")
 
-If sys.is_device%("pmvga") Then
+'!if defined(GAMEMITE)
+  '!uncomment_if true
+  ' Const VERSION_STRING$ = "Game*Mite Version " + sys.format_version$(VERSION)
+  ' Dim CONTROLLERS$(1) = ("keys_wasd", "ctrl.gamemite")
+  '!endif
+'!else
+If sys.is_platform%("pmvga") Then
   Dim CONTROLLERS$(2) = ("keys_wasd", "nes_a", "atari_a")
-ElseIf sys.is_device%("gamemite") Then
+ElseIf sys.is_platform%("gamemite") Then
   Dim CONTROLLERS$(1) = ("keys_wasd", "ctrl.gamemite")
-ElseIf sys.is_device%("pm*", "mmb4w") Then
+ElseIf sys.is_platform%("pm*", "mmb4w") Then
   Dim CONTROLLERS$(1) = ("keys_wasd", "keys_wasd")
-ElseIf sys.is_device%("cmm2*") Then
+ElseIf sys.is_platform%("cmm2*") Then
   Dim CONTROLLERS$(2) = ("keys_wasd", "wii_classic_3", "atari_dx")
 Else
   Error "Unsupported device: " + Mm.Device$
 EndIf
+Const VERSION_STRING$ = "Version " + sys.format_version$(VERSION)
+'!endif
 
 Const STATE_SHOW_TITLE% = 0
 Const STATE_PLAY_GAME% = 1
@@ -61,7 +69,9 @@ Dim redraw%
 Dim tmp_int%
 Dim state%
 
-If sys.is_device%("mmb4w", "cmm2*") Then Option Console Serial
+'!if !defined(GAMEMITE)
+If sys.is_platform%("mmb4w", "cmm2*") Then Option Console Serial
+'!endif
 Mode 7
 Font 1
 Page Write 1
@@ -353,7 +363,12 @@ Sub break_cb()
 End Sub
 
 Sub end_program(break%)
-  If sys.is_device%("gamemite") Then
+'!if defined(GAMEMITE)
+  '!uncomment_if true
+  ' gamemite.end(break%)
+  '!endif
+'!else
+  If sys.is_platform%("gamemite") Then
     gamemite.end(break%)
   Else
     Page Write 0
@@ -366,29 +381,32 @@ Sub end_program(break%)
     On Error Abort
     End
   EndIf
+'!endif
 End Sub
 
 Function show_title$()
-  If sys.is_device%("gamemite") Then
-    Const platform$ = "GameMite"
+'!if defined(GAMEMITE)
+  '!uncomment_if true
+  Const txt$ = "Press START to play"
+  '!endif
+'!else
+  If sys.is_platform%("gamemite") Then
     Const txt$ = "Press START to play"
-  ElseIf sys.is_device%("pm") Then
-    Const platform$ = "PicoMite"
+  ElseIf sys.is_platform%("pm") Then
     Const txt$ = "Press SPACE to play"
-  ElseIf sys.is_device%("pmvga") Then
-    Const platform$ = "PicoGAME VGA"
+  ElseIf sys.is_platform%("pmvga") Then
     Const txt$ = "Press START, FIRE or SPACE to play"
   Else
-    Const platform$ = "Colour Maximite 2"
     Const txt$ = "Press START, FIRE or SPACE to play"
   EndIf
+'!endif
 
   Const X_OFFSET% = MM.HRes \ 2
   Const Y_OFFSET% = MM.VRes \ 2
 
   Cls
   Text X_OFFSET%, Y_OFFSET% - 27, "3D MAZE", "CM", 1, 2, RGB(White)
-  Text X_OFFSET%, Y_OFFSET% - 2, platform$ + " Version", "CM", 7, 1, Rgb(Green)
+  Text X_OFFSET%, Y_OFFSET% - 2, VERSION_STRING$, "CM", 7, 1, Rgb(Green)
   Text X_OFFSET%, Y_OFFSET% + 10, "(c) 2022-2023 Martin Herhaus", "CM", 7, 1, RGB(Green)
   Text X_OFFSET%, Y_OFFSET% + 30, txt$, "CM", 1, 1, RGB(White)
   Page Copy 1 To 0, B
