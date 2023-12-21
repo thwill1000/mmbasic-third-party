@@ -2,28 +2,36 @@
 ' License MIT <https://opensource.org/licenses/MIT>
 ' For MMBasic 5.07
 
-'!ifndef NO_INCLUDE_GUARDS
-On Error Skip 1 : Dim sys.VERSION$ = ""
-If sys.VERSION$ = "" Then Error "'system.inc' not included"
+'!if !defined(NO_INCLUDE_GUARDS)
+On Error Skip 1 : Dim sys.VERSION = -1
+If sys.VERSION = -1 Then Error "'system.inc' not included"
 sys.requires("ctrl", "sound", "string", "txtwm")
 sys.provides("menu")
 If sys.err$ <> "" Then Error sys.err$
 '!endif
 
 Sub menu.init(ctrl$, callback$)
+  Dim menu.OK_BTN$(1) Length 2 = ("OK", "")
   Dim YES_NO_BTNS$(1) Length 3 = ("Yes", "No")
 
   Dim menu.callback$ = callback$, menu.ctrl$ = ctrl$
   Dim menu.item_count%, menu.selection%
 
   Font 1
-  If sys.is_device%("mmb4l") Then
-    Dim menu.height% = Mm.VRes
-    Dim menu.width% = Mm.HRes
+'!if defined(GAMEMITE)
+  '!uncomment_if true
+  ' Dim menu.height% = Mm.VRes \ Mm.Info(FontHeight)
+  ' Dim menu.width% = Mm.HRes \ Mm.Info(FontWidth)
+  '!endif
+'!else
+  If sys.is_platform%("mmb4l") Then
+    Dim menu.height% = Min(Mm.VRes, 50)
+    Dim menu.width% = Min(Mm.HRes, 100)
   Else
     Dim menu.height% = Mm.VRes \ Mm.Info(FontHeight)
     Dim menu.width% = Mm.HRes \ Mm.Info(FontWidth)
   EndIf
+'!endif
   Local sz%
   Inc sz%, 7 + 2 * menu.height% * menu.width%
   Inc sz%, 7 + 2 * (menu.height% - 10) * (menu.width% - 10)
@@ -102,39 +110,44 @@ Sub menu.render_item(idx%)
 End Sub
 
 Sub menu.main_loop()
-  Local cmd$, key%, new_sel%
+  Local key%
   Do
     If sys.break_flag% Then menu.on_break()
     Call menu.ctrl$, key%
     If Not key% Then keys_cursor(key%)
-    If Not key% Then Continue Do
-
-    Select Case key%
-      Case ctrl.A, ctrl.B, ctrl.START, ctrl.SELECT, ctrl.LEFT, ctrl.RIGHT
-        ' TODO: there is a bug in CALL which means it can't handle the case
-        '       where an expression that provides the command name contains a
-        '       comma or single-quote.
-        cmd$ = Field$(menu.items$(menu.selection%), 2, "|")
-        Call cmd$, key%
-
-      Case ctrl.DOWN, ctrl.UP
-        new_sel% = menu.selection%
-        Do
-          Inc new_sel%, Choice(key% = ctrl.DOWN, 1, -1)
-          If new_sel% < 0 Or new_sel% >= menu.item_count% Then
-            new_sel% = menu.selection%
-            menu.play_invalid_fx()
-            Pause ctrl.UI_DELAY
-            Exit Do
-          EndIf
-        Loop Until Len(Field$(menu.items$(new_sel%), 2, "|"))
-        menu.select_item(new_sel%)
-
-      Case Else
-        menu.play_invalid_fx()
-        Pause ctrl.UI_DELAY
-    End Select
+    menu.process_key(key%)
   Loop
+End Sub
+
+Sub menu.process_key(key%)
+  Local cmd$, new_sel%
+  If Not key% Then Exit Sub
+
+  Select Case key%
+    Case ctrl.A, ctrl.B, ctrl.START, ctrl.SELECT, ctrl.LEFT, ctrl.RIGHT
+      ' TODO: there is a bug in CALL which means it can't handle the case
+      '       where an expression that provides the command name contains a
+      '       comma or single-quote.
+      cmd$ = Field$(menu.items$(menu.selection%), 2, "|")
+      Call cmd$, key%
+
+    Case ctrl.DOWN, ctrl.UP
+      new_sel% = menu.selection%
+      Do
+        Inc new_sel%, Choice(key% = ctrl.DOWN, 1, -1)
+        If new_sel% < 0 Or new_sel% >= menu.item_count% Then
+          new_sel% = menu.selection%
+          menu.play_invalid_fx()
+          Pause ctrl.UI_DELAY
+          Exit Do
+        EndIf
+      Loop Until Len(Field$(menu.items$(new_sel%), 2, "|"))
+      menu.select_item(new_sel%)
+
+    Case Else
+      menu.play_invalid_fx()
+      Pause ctrl.UI_DELAY
+  End Select
 End Sub
 
 Sub menu.select_item(new_sel%)
@@ -162,10 +175,13 @@ Sub menu.play_invalid_fx(block%)
   EndIf
 End Sub
 
-Function menu.msgbox%(msg$, buttons$(), default%)
+' @param  frameCol%  frame colour; one of the colours from 'txtwm.inc'.
+'                    If unspecified then uses twm.CYAN%.
+Function menu.msgbox%(msg$, buttons$(), default%, frameCol%)
   menu.msgbox% = default%
 
   Local base% = Mm.Info(Option Base), num% = Bound(buttons$(), 1) - base% + 1
+  If buttons$(base% + 1) = "" Then num% = 1 ' Single button.
   Local i%, key%, p%, released%, valid% = 1, word$, x%(num%)
   x%(base%) = 2
   For i% = base% + 1 To base% + num% - 1
@@ -174,7 +190,7 @@ Function menu.msgbox%(msg$, buttons$(), default%)
 
   twm.switch(menu.win2%)
   twm.cls()
-  twm.foreground(twm.CYAN%)
+  twm.foreground(Choice(frameCol%, frameCol%, twm.CYAN%))
   twm.box(0, 0, twm.w%, twm.h%)
   twm.foreground(twm.WHITE%)
 

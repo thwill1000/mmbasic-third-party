@@ -2,9 +2,9 @@
 ' License MIT <https://opensource.org/licenses/MIT>
 ' For MMBasic 5.07
 
-'!ifndef NO_INCLUDE_GUARDS
-On Error Skip 1 : Dim sys.VERSION$ = ""
-If sys.VERSION$ = "" Then Error "'system.inc' not included"
+'!if !defined(NO_INCLUDE_GUARDS)
+On Error Skip 1 : Dim sys.VERSION = -1
+If sys.VERSION = -1 Then Error "'system.inc' not included"
 sys.provides("string")
 If sys.err$ <> "" Then Error sys.err$
 '!endif
@@ -172,6 +172,15 @@ Function str.trim$(s$)
     If Peek(Var s$, en%) <> 32 Then Exit For
   Next
   If en% >= st% Then str.trim$ = Mid$(s$, st%, en% - st% + 1)
+End Function
+
+' Returns a copy of s$ with trailing spaces removed.
+Function str.rtrim$(s$)
+  Local en%
+  For en% = Len(s$) To 1 Step -1
+    If Peek(Var s$, en%) <> 32 Then Exit For
+  Next
+  If en% >= 1 Then str.rtrim$ = Mid$(s$, 1, en%)
 End Function
 
 ' If s$ both begins and ends with " then returns a copy of s$ with those characters removed,
