@@ -1,0 +1,12 @@
+ChangeLog
+---------
+
+Version 1.1.1 - 21-Dec-2023:
+  - Maintenance release to bring source inline with latest version of splib.
+
+Version 1.1.0 - 16-Sep-2023:
+  - First official Game*Mite version.
+
+Version 1.0.0:
+  - Original PicoMiteVGA version by @Martin H,
+    see https://www.thebackshed.com/forum/ViewTopic.php?TID=15293
