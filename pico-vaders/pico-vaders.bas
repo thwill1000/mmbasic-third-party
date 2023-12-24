@@ -11,7 +11,7 @@ Option Base 0
 Option Default None
 Option Explicit On
 
-Const VERSION = 101302 ' 1.1.2
+Const VERSION = 101303 ' 1.1.3
 
 '!define NO_INCLUDE_GUARDS
 
@@ -126,6 +126,7 @@ new_game_label:
 
 intro()
 Call ctrl$, ctrl.OPEN
+ctrl.wait_until_idle(ctrl$)
 
 plx% = 103 : y_pos% = 48
 anim% = 1 : tick% = 1
@@ -447,42 +448,49 @@ Sub start_ufo()
 End Sub
 
 Sub drop_bomb()
-'Number of active bombs =Max then Get out
   If bombs_out% >= bmax% Then Exit Sub
-'start at the bottom right Alien
-  Local aln% = 56
-test_next_alien:
-  Inc aln%, -1
-'
-'Has the Countdown arrived 0? No bomb possible: Get out
-  If aln% = 0 Then Exit Sub
-'active? no, test next alien..
-  If Not aliens%(aln%, 4) Then Goto test_next_alien
-'---only one Bomb at once per Alien
-'no own bomb on the way yet? No, test next alien.
+
+  ' Start at the bottom right alien.
+  Local aln%
+  For aln% = 55 To 1 Step -1
+    ' If the alien is dead then test next alien.
+    If Not aliens%(aln%, 4) Then Continue For
+
+    ' If the alien already has an active bomb then test next alien.
+    For bn% = 1 To 10
+      If a_bomb%(bn%, 3) Then
+        If a_bomb%(bn%, 4) = aln% Then bn% = 0 : Exit For
+      EndIf
+    Next
+    If Not bn% Then Continue For
+
+    ' Aliens not near the player only drop bomb 1 in 25 times.
+    Select Case aliens%(aln%, 1)
+      Case < plx% - 8, > plx% + 8
+        If Int(Rnd * 25) Then Continue For
+    End Select
+
+    ' Alien on the bottom row.
+    If aln% > 44 Then Exit For
+
+    ' Alien with no other alien beneath it.
+    If Not aliens%(aln% + 11, 4) Then Exit For
+  Next
+
+  ' No bomb being dropped.
+  If Not aln% Then Exit Sub
+
+  ' Drop a bomb.
   For bn% = 1 To 10
-    If a_bomb%(bn%, 3) = 1 And a_bomb%(bn%, 4) = aln% Then Goto test_next_alien
-  Next bn%
-'near the ship? no? Random(1/25) otherwise test next alien.
-  If aliens%(aln%, 1) < plx% - 8 Or aliens%(aln%, 1) > plx% + 8 And Int(Rnd * 25) > 1 Then
-    Goto test_next_alien
-  EndIf
-'And Int(Rnd*25)>1
-'if row less than 5: is there an active alien below me? Yes,test next alien.
-  If aln% < 45 Then If aliens%(aln% + 11, 4) = 1 Then Goto test_next_alien
-'Drop the bomb
-  bn% = 1
-'find_free place in Array:
-testSlot:
-  If a_bomb%(bn%, 3) = 1 Then
-    Inc bn% : If bn% > 10 Then Exit Sub
-    Goto testSlot
-  EndIf
-  a_bomb%(bn%, 1) = aliens%(aln%, 1) + 8
-  a_bomb%(bn%, 2) = aliens%(aln%, 2) + 6
-  a_bomb%(bn%, 3) = 1
-  a_bomb%(bn%, 4) = aln%
-  Inc bombs_out%
+    If Not a_bomb%(bn%, 3) Then
+      a_bomb%(bn%, 1) = aliens%(aln%, 1) + 8
+      a_bomb%(bn%, 2) = aliens%(aln%, 2) + 6
+      a_bomb%(bn%, 3) = 1
+      a_bomb%(bn%, 4) = aln%
+      Inc bombs_out%
+      Exit For
+    EndIf
+  Next
 End Sub
 
 Sub draw_bomb()
@@ -817,19 +825,8 @@ End Sub
 ' Move a Single Alien one Step
 ' Aliens are counted from bottom right to top left
 Sub move_single()
-  Local ax%, ay%, at%
-mslife:
-  ' Is this alien alive?
-  If aliens%(anr%, 4) Then
-    ax% = aliens%(anr%, 1)
-    ay% = aliens%(anr%, 2)
-    at% = aliens%(anr%, 3)
-    Box ax% + 50, ay%, 16, 10, , 0, 0
-    Inc ax%, adir%
-    Gui Bitmap ax% + 50, ay%, alien$(at%, anim%), 16, 8, 1, Rgb(White), 0
-    aliens%(anr%, 1) = ax%
-    If ax% >= X_MAX% Or ax% < 1 Then trn% = 1
-  Else
+  ' Find a live alien.
+  Do While Not aliens%(anr%, 4)
     ' Move to previous alien
     Inc anr%, -1
     If anr% < 1 Then
@@ -840,8 +837,15 @@ mslife:
       If Not ua% Then Play Tone snd%(mvsnd% + 1), snd%(mvsnd% + 1), 80
       anim% = Choice(anim% = 1, 2, 1)
     EndIf
-    Goto mslife
-  EndIf
+  Loop
+
+  Local ax% = aliens%(anr%, 1), ay% = aliens%(anr%, 2), at% = aliens%(anr%, 3)
+  Box ax% + 50, ay%, 16, 10, , 0, 0
+  Inc ax%, adir%
+  Gui Bitmap ax% + 50, ay%, alien$(at%, anim%), 16, 8, 1, Rgb(White), 0
+  aliens%(anr%, 1) = ax%
+  If ax% >= X_MAX% Or ax% < 1 Then trn% = 1
+
   Inc anr%, -1
 End Sub
 

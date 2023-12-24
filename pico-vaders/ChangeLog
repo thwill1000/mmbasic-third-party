@@ -1,0 +1,21 @@
+ChangeLog
+---------
+
+Version 1.1.3 - 24-Dec-2023:
+  - Fixed issue when run on PicoMite 5.08 firmware where the game would slow
+    down and become unplayable once most of the aliens were destroyed.
+    - In order to save RAM the 5.08 firmware no longer hashes labels resulting
+      in the performance of GOTO being significantly worse c.f. 5.07.08.
+
+Version 1.1.2 - 21-Dec-2023:
+  - Maintenance release to bring source inline with latest version of splib.
+
+Version 1.1.1 - 1-Oct-2023:
+  - Fixed crash when intro allowed to run to its conclusion.
+
+Version 1.1.0 - 16-Sep-2023:
+  - First official Game*Mite version.
+
+Version 1.0.0:
+  - Original PicoMiteVGA version by @Martin H,
+    see https://www.thebackshed.com/forum/ViewTopic.php?TID=14976
