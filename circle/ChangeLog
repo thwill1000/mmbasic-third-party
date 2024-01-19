@@ -1,6 +1,11 @@
 ChangeLog
 ---------
 
+Version 1.1.1 - 19-Jan-2024:
+  - Fixed bug where if a button was being held down when one of the players won
+    then the game would pause until the button was released before announcing
+    the winner.
+
 Version 1.1.0 - 21-Dec-2023:
   - First official Game*Mite version.
 

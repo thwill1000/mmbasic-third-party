@@ -1,12 +1,12 @@
 '_Circle-One for Game*Mite (PicoMite 5.08.00)
-' Copyright (c) 2023 @Volhout
+' Copyright (c) 2023-2024 @Volhout
 ' Titivated for Game*Mite by Thomas Hugo Williams
 
 Option Base 0
 Option Default Float
 Option Explicit On
 
-Const VERSION = 101300 ' 1.1.0
+Const VERSION = 101301 ' 1.1.1
 
 '!define NO_INCLUDE_GUARDS
 #Include "../splib/system.inc"
@@ -110,7 +110,7 @@ End Sub
 
 intro_data:
 Data "CIRCLE ONE", 2, CY, 17
-Data "By @Volhout 2023", 1, CC, 13
+Data "2023-2024 @Volhout", 1, CC, 13
 Data "<version>", 1, CG, 17
 Data "", 1, CW, 17
 Data "Eat apples to grow and win", 1, CW, 17
@@ -132,9 +132,9 @@ Data "", 0, 0, 0
 Function display_text%(label$, top%, key_mask%, msec%)
   Const _key_mask% = Choice(key_mask%, key_mask%, ctrl.SELECT Or ctrl.START)
   Local col%, dy%, h%, s$, sz%, t%, w%, y% = top%
-  Local k% = Not msec%
+  Local k% = Not msec%, k_old%
+  Call ctrl$, k_old%
   Restore label$
-  ctrl.wait_until_idle(ctrl$)
   Do
     Read s$, sz%, col%, dy%
     If Not sz% Then Exit Do
@@ -143,11 +143,15 @@ Function display_text%(label$, top%, key_mask%, msec%)
     h% = 8 * sz% + 4
     If Len(s$) Then Box (Mm.HRes - w%) / 2, y% - h% / 2, w%, h%, 1, 0, 0
     Text Mm.HRes / 2, y%, s$, "CM", 8, sz%, col% : Inc y%, dy%
-    If k% Then Continue Do ' Pressing a key interrupts the PAUSE-ing
+    If k% Then Continue Do ' Pressing a key interrupts the PAUSE-ing.
     FrameBuffer Wait
     FrameBuffer Copy F, N
     t% = Timer + msec%
-    Do While (Timer < t%) And (Not k%) : Call ctrl$, k% : Loop
+    Do While (Timer < t%) And (Not k%)
+      Call ctrl$, k%
+      ' Require the user to have released key or be pressing different key.
+      If k% = k_old% Then k% = 0 Else k_old% = k%
+    Loop
   Loop
   FrameBuffer Wait
   FrameBuffer Copy F, N
