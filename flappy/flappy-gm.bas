@@ -8,7 +8,8 @@
   ' flappy11  uses graphics in flash slot in preparation of LCD
   ' flappy11_game_mite 	version for Game*Mite
   
-  path$="B:/flappy11/"
+  ' path$="B:/flappy11/"
+  path$ = Choice(MM.Info(Path) <> "NONE", MM.Info(PATH), Cwd$)
   
   'setup memory and screen
   Option DEFAULT integer
