@@ -10,10 +10,18 @@
 '       V1.0 Multi System Version
 '       For PicoMite VGA,Game*Mite and MMB4Windows
 '===========================================
-Mite% = 0
-'VGA=0  Game*mite=1:MMB4W=2
+
+Option Base 0
+Option Default None
+Option Explicit On
+
 Option Break 4 : On Key 3, on_break
-'platform specific setup
+
+Cls
+
+' Platform specific setup.
+Dim mite% = 0 ' PicoMiteVGA = 0, Game*Mite = 1, MMB4W = 2, MMB4L = 3
+Dim Integer a
 Select Case Mm.Device$
   Case "PicoMiteVGA"
     Mite% = 0
@@ -24,49 +32,57 @@ Select Case Mm.Device$
   Case "MMBasic for Windows"
     Mite% = 2
     Mode -7
+  Case "MMB4L"
+    mite% = 3
+    Graphics Window 0, -1, -1, 320, 240, 10
 End Select
 
-mapSize.x = 17
-mapSize.y = 18
+Dim Integer mapSize.x = 17
+Dim Integer mapSize.y = 18
 Dim String screen(25) Length 48, esc = Chr$(27), v_inv = esc + "[7m", v_norm = esc + "[0m"
 Dim String grey$ = Chr$(135) lenght 1
 Dim String txt(22) Length 64
 Dim d$ = Chr$(223), u$ = Chr$(220), b$ = Chr$(160)
-Dim Integer gameMap(mapSize.y, mapSize.x), GAMEFLAGS, Rex.x, Rex.y, Rex.a
+Dim Integer gameMap(mapSize.y%, mapSize.x%), GAMEFLAGS, Rex.x, Rex.y, Rex.a
 Dim blk$(16) Length 2
 Dim String MSG(7) Length 22
-exi$ = " " + Chr$(176) + Chr$(177) + Chr$(178) + Chr$(219) + Chr$(178) + Chr$(177) + Chr$(176)
-el = Len(exi$)
+Dim exi$ = " " + Chr$(176) + Chr$(177) + Chr$(178) + Chr$(219) + Chr$(178) + Chr$(177) + Chr$(176)
+Dim Integer el = Len(exi$)
 MSG(0) = "   REX LIES IN WAIT   " : MSG(1) = " run HE IS BEHIND YOU "
 MSG(2) = " run HE IS BESIDE YOU " : MSG(3) = "   REX HAS SEEN YOU   "
 MSG(4) = " FOOTSTEPS APPROACHING" : MSG(5) = " HE IS HUNTING FOR YOU"
 MSG(6) = String$(22, 32)
-wall = 1 : None = 0
-Status = 0
+Dim Integer wall = 1, none = 0
+Dim Integer status = 0 ' 0 .. 6
+Dim Integer die, direction, f, key, mt, n, o_n, px, py, pp.x, pp.y, rmov, score, tt
+
 Font 9
 Restore Blocks
 For n = 0 To 15 : Read a : blk$(n) = Chr$(a) : Next
+
 restrt:
+Randomize(Timer)
 generateMap
 score = 0
 placeExit
 placeRex
 o_n = -1 : MT = 0
 
-GAMEFLAGS = 0
-'   Bit 7: 1=The player has been caught.
-'   Bit 6: 1=The player has moved forwards.
-'   Bit 5: 1=The player has not moved and so there is no need to redraw the view of the maze.
-'   Bit 4: 1=The Exit is visible.
-'   Bit 3: 1=Rex has moved.
-'   Bit 2: 1=Rex has moved into a new location.
-'   Bit 1: 1=Rex has his left foot forward, 0=Rex has his right foot forward.
-'   Bit 0: Controls the movement speed of Rex. It combines with bits 1 and 2 to form a 3 bit counter. Bit 0 will be forced to 1
-'          when the played is moving thereby forcing Rex to take quicker steps.p
-intro
+' Bit 7: 1=The player has been caught.
+' Bit 6: 1=The player has moved forwards.
+' Bit 5: 1=The player has not moved and so there is no need to redraw the view of the maze.
+' Bit 4: 1=The Exit is visible.
+' Bit 3: 1=Rex has moved.
+' Bit 2: 1=Rex has moved into a new location.
+' Bit 1: 1=Rex has his left foot forward, 0=Rex has his right foot forward.
+' Bit 0: Controls the movement speed of Rex. It combines with bits 1 and 2 to form a 3 bit counter. Bit 0 will be forced to 1
+'        when the played is moving thereby forcing Rex to take quicker steps.
+GAMEFLAGS = &b00000000
+
+If Mm.CmdLine$ <> "--no-intro" Then intro()
 'insert PlayerPosition into Maze
 Nxtrnd:
-pp.x = mapSize.x - 1 : pp.y = mapSize.y - 1 : Dir = 3
+pp.x = mapSize.x - 1 : pp.y = mapSize.y - 1 : direction = 3
 'clear terminal screen
 Cls
 For f = 0 To 23 : Text 32, 24 + f * 8, String$(32, " ") : Next
@@ -86,35 +102,31 @@ clr
 'Main loop
 '===========================================
 Do
-  tt% = Timer
+  tt = Timer
   view
   For f = 0 To 23 : Text 32, 24 + f * 8, screen$(f) : Next
 
-  GAMEFLAGS = GAMEFLAGS Or 32
-  k$ = Inkey$
-  If k$ = "" Then
-    If Mite% = 1 Then
-      k$ = Chr$(ctrl_gamemite(0)) : If k$ = Chr$(0) Then k$ = ""
-    End If
-  End If
-  If k$ <> "" Then
-    Select Case Asc(k$)
+  GAMEFLAGS = GAMEFLAGS Or &b00100000 ' set bit 5
+  key = get_input()
+  If key Then
+    Select Case key
       Case 131 'right
-        Inc Dir : Dir = Dir Mod 4
-        GAMEFLAGS = GAMEFLAGS And 223 ' reset bit 5
+        Inc direction : direction = direction Mod 4
+        GAMEFLAGS = GAMEFLAGS And &b11011111 ' reset bit 5
       Case 130
-        Inc Dir, -1 : If Dir = -1 Then Dir = 3
-        GAMEFLAGS = GAMEFLAGS And 223 ' reset bit 53
+        Inc direction, -1 : If direction = -1 Then direction = 3
+        GAMEFLAGS = GAMEFLAGS And &b11011111 ' reset bit 5
       Case 128 'up
-        GAMEFLAGS = GAMEFLAGS Or 64
-        GAMEFLAGS = GAMEFLAGS And 223
+        GAMEFLAGS = GAMEFLAGS Or  &b01000000 ' set bit 6
+        GAMEFLAGS = GAMEFLAGS And &b11011111 ' reset bit 5
         Move
-        GAMEFLAGS = GAMEFLAGS And 223 ' reset bit 5
+        GAMEFLAGS = GAMEFLAGS And &b11011111 ' reset bit 5
     End Select
   EndIf
-  k$ = Inkey$
-  rmov = GAMEFLAGS And 3 : Inc rmov
-  GAMEFLAGS = GAMEFLAGS And 252
+
+  rmov = GAMEFLAGS And &b00000011
+  Inc rmov
+  GAMEFLAGS = GAMEFLAGS And &b11111100
   If rmov = 3 Then
     Move_Rex
     Rex.a = 0
@@ -125,13 +137,12 @@ Do
   If (Rex.x = pp.x) And (Rex.y = pp.y) And Rex.a Then die = 1 : Exit
   If gameMap(pp.y, pp.x) = 2 Then die = 0 : Exit
 
-
   exi$ = Right$(exi$, el - 1) + Left$(exi$, 1)
-  Do : Loop Until Inkey$ = ""
+  clear_input()
 
-  Pause 250 - (Timer - tt%)
+  Pause 250 - (Timer - tt)
 
-  Text 240, 108, Str$(Score)
+  Text 240, 108, Str$(score)
 Loop
 If die = 1 Then
   EndGame
@@ -148,7 +159,8 @@ EndIf
 '===========================================
 
 Sub Intro
-  Local F, y, a$
+  Local Integer f, y
+  Local a$
   Local String RM$(34)
   For f = 0 To 2 : txt(f) = "" : Next
 
@@ -161,34 +173,38 @@ Sub Intro
   Cls
   For f = 0 To 23 : Text 32, 24 + f * 8, String$(32, " ") : Next
   For f = 0 To 22 : txt(f) = "" : Text 32, 24 + f * 8, String$(32, " ") : Next
+
   'Show Ringmaster
   For y = 0 To 20 : Text 32, 24 + y * 8, RM$(y) : Next
   Text 32, 200, invert$("     (C)1981 BY MALCOM EVANS    ")
   Text 32, 208, invert$(" MMBASIC BY MARTIN HERHAUS 2024 ")
+
+  ' Show intro text.
   Restore intro1
-  showtxt
- 'Show Ringmaster Bow
+  showtxt()
+
+  ' Show Ringmaster Bow
   For y = 0 To 12 : Text 32, 24 + y * 8, RM$(21 + y) : Next
-  'scroll 10 empty Lines
+
+  ' Scroll 10 empty Lines
+  clear_input()
   For y = 1 To 10
     For f = 0 To 21
       Text 112, 24 + f * 8, txt(f)
       txt(f) = txt(f + 1)
     Next
-    Pause 500
+    Pause Choice(get_input(), 10, 500)
     txt(21) = String$(22, " ")
   Next
+
   'Show Ringmaster
   For y = 0 To 20 : Text 32, 24 + y * 8, RM$(y) : Next
 
-  Do : Loop Until Inkey$ = ""
-
+  clear_input()
   Do
-    k$ = Inkey$
-    If Mite% = 1 Then k$ = Chr$(ctrl_gamemite(0))
-    If k$ = Chr$(0) Then k$ = ""
-  Loop Until k$ <> ""
-  Select Case Asc(k$)
+    key = get_input()
+  Loop Until key
+  Select Case key
     Case 13, 82
       Restore InStr
     Case 32, 67
@@ -196,11 +212,14 @@ Sub Intro
     Case 27
       on_break
   End Select
-  showtxt
- 'Show Ringmaster Bow
+
+  showtxt()
+
+  ' Show Ringmaster Bow
   For y = 0 To 12 : Text 32, 24 + y * 8, RM$(21 + y) : Next
   Pause 1000
- 'Show Ringmaster
+
+  ' Show Ringmaster
   For y = 0 To 20 : Text 32, 24 + y * 8, RM$(y) : Next
   Pause 2000
   Print @(0, 0);
@@ -214,9 +233,13 @@ Function invert$(in$)
   Next f
 End Function
 
-Sub showtxt
-  'Local string txt(22)
-  Local a$
+' Shows scrolling text read from current DATA pointer.
+Sub showtxt()
+  Local a$, b1$
+  Local Integer f
+
+  clear_input()
+
   Do
     Read b1$
     a$ = ""
@@ -231,16 +254,17 @@ Sub showtxt
     For f = 0 To 20 : txt(f) = txt(f + 1) : Next
     txt(21) = a$
     For f = 0 To 21 : Text 112, 24 + f * 8, txt(f) : Next
-    Pause 500
+    Pause Choice(get_input(), 10, 500)
     For f = 0 To 20 : txt(f) = txt(f + 1) : Next
     txt(21) = String$(22, " ")
     For f = 0 To 21 : Text 112, 24 + f * 8, txt(f) : Next
-    Pause 500
+    Pause Choice(get_input(), 10, 500)
   Loop
-End Sub
+End Function
 
 Sub EndGame
   Local mes$
+  Local Integer w
   Pause 1000
     'For f=0 To 23:Text 32,24+f*8,String$(28,32):Next
   Rex.a = 0 : shRex 0
@@ -254,31 +278,25 @@ Sub EndGame
     mes$ = ZXFNT$(mes$)
     Text 40 + 8 * w, 24 + f * 8, Mes$
   Next
-  Do : Loop Until Inkey$ = ""
+  clear_input()
   Do
-    k$ = Inkey$
-    If k$ = "" And Mite% = 1 Then k$ = Chr$(ctrl_gamemite(0))
-    If k$ = Chr$(0) Then k$ = ""
-    If k$ = Chr$(27) Then on_break
-    If k$ = Chr$(13) Or k$ = Chr$(10) Or k$ = Chr$(67) Then Exit Do
+    key = get_input()
+    If key = 27 Then on_break
+    If key = 13 Or key = 10 Or key = 67 Then Exit Do
   Loop
 End Sub
 
 Sub winGame
   Local mes$
   Pause 1000
-  Inc Score, 200
+  Inc score, 200
   For f = 0 To 23 : Text 32, 24 + f * 8, screen$(f) : Next
   Restore END1
   For f = 6 To 11 : Read Mes$ : Text 48, 24 + f * 12, Mes$ : Next
-  Do : Loop Until Inkey$ = ""
+  clear_input()
   Do
-    k$ = Inkey$
-    If k$ = "" And Mite% = 1 Then
-      k$ = Chr$(ctrl_gamemite(0))
-      If k$ = Chr$(0) Then k$ = ""
-    End If
-    If k$ = Chr$(13) Or k$ = Chr$(67) Or k$ = Chr$(10) Then Exit Do
+    key = get_input()
+    If key = 13 Or key = 67 Or key = 10 Then Exit Do
   Loop
 End Sub
 
@@ -300,7 +318,7 @@ End Function
 
 Sub Move
 'move Player position one step forward
-  Select Case Dir
+  Select Case direction
     Case 0
       If pp.y > 1 Then
         If gameMap(pp.y - 1, pp.x) <> wall Then Inc pp.y, -1
@@ -318,7 +336,7 @@ Sub Move
         If gameMap(pp.y, pp.x - 1) <> wall Then Inc pp.x, -1
       EndIf
   End Select
-  Inc Score, 5 * (Status > 0 And status < 4)
+  Inc score, 5 * (status > 0 And status < 4)
 End Sub
 
 '===========================================
@@ -330,7 +348,7 @@ Sub view
   Local Integer n1, sr
   clr
   sr = -1
-  Select Case Dir
+  Select Case direction
     Case 0
       For n1 = 0 To 5
         If gameMap(pp.y - n1, pp.x - 1) <> wall Then Pass n1, 0
@@ -365,12 +383,11 @@ Sub view
       Next
   End Select
   If sr > -1 Then shRex sr
-  sh_msh(Status)
+  show_message(status)
 End Sub
 
-Sub sh_msh nr
-  Local kk
-  kk = nr
+Sub show_message(nr As Integer)
+  Local kk As Integer = nr
   'Show Status Messsages
   Local Integer n
   If kk = o_n Then
@@ -381,7 +398,7 @@ Sub sh_msh nr
     mt = 0 : o_n = kk
   EndIf
   If mt > 5 Then kk = 6
-  mes$ = ZXFNT$(MSG$(kk))
+  Local mes$ = ZXFNT$(MSG$(kk))
   For n = 2 To 23
     Mid$(screen$(23), n, 1) = Mid$(mes$, n - 1, 1)
   Next
@@ -406,8 +423,8 @@ Sub clr
 End Sub
 
 '----  corridors and walls
-Sub Pass n, st
-  Local Integer v(3), y, ys, ye, xw, h
+Sub Pass(n As Integer, st As Integer)
+  Local Integer h, v(3), wb, xw, y, ys, ye
   Local ss$
   Select Case n
     Case 0 : ys = 0 : ye = 23 : xw = 1 : V(0) = 1 : V(2) = 25 : H = 0
@@ -440,7 +457,7 @@ Sub Pass n, st
   EndIf
 End Sub
 
-Sub ext(num)
+Sub ext(num As Integer)
 'Draw the Exit in front of the player
   Local Integer y, ch
   exi$ = Right$(exi$, el - 1) + Left$(exi$, 1)
@@ -463,11 +480,11 @@ Sub ext(num)
   End Select
 End Sub
 
-Sub shRex N
+Sub shRex(n As Integer)
 'show Rex
 ' (Insert Rex into the "Screenarray")
-  Local Integer sx, sy, x, y, f, m
-  Local tm$
+  Local Integer f, m, sx, sy, t, x, y
+  Local s$, tm$
   n = n * 2
   Select Case(N - Rex.a)
     Case 10 : Restore rex5R
@@ -500,9 +517,13 @@ End Sub
 Sub Move_Rex
   'clear movement indicators
   Local Integer pdx, pdy, pd, scx, scy, scs, stp
-  GAMEFLAGS = GAMEFLAGS And 243
+  GAMEFLAGS = GAMEFLAGS And &b11110011
   pdx = Abs(rex.x - pp.x) : pdy = Abs(rex.y - pp.y)
   pd = Sqr((pdx * pdx) + (pdy * pdy))
+
+  ' For debugging, distance of T-Rex from player.
+  Text 240, 128, Str$(pd) + " "
+
  '-----------------------------------
  'choose the appropriate status message
   Select Case pd
@@ -520,7 +541,7 @@ Sub Move_Rex
   If pdx = 0 And Status <> 2 Then
     scs = 0
     stp = -1 : If rex.y < pp.y Then stp = 1
-    For scy = trex.y To pp.y Step stp
+    For scy = rex.y To pp.y Step stp
       Inc scs, (gameMap(scy, Rex.x) = wall)
     Next
     If Not scs Then Status = 3
@@ -529,7 +550,7 @@ Sub Move_Rex
   If pdy = 0 And Status <> 2 Then
     scs = 0
     stp = -1 : If rex.x < pp.x Then stp = 1
-    For scx = trex.x To pp.x Step stp
+    For scx = rex.x To pp.x Step stp
       Inc scs, (gameMap(Rex.y, scx) = wall)
     Next
     If Not scs Then Status = 3
@@ -542,8 +563,8 @@ Sub Move_Rex
     If gameMap(Rex.y, Rex.x - 1) = None Then
       gameMap(Rex.y, Rex.x) = None : Inc Rex.x, -1
       gameMap(Rex.y, Rex.x) = 3
-      GAMEFLAGS = GAMEFLAGS And 223
-      GAMEFLAGS = GAMEFLAGS Or 12 : Exit Sub
+      GAMEFLAGS = GAMEFLAGS And &b11011111
+      GAMEFLAGS = GAMEFLAGS Or &b00001100 : Exit Sub
     EndIf
   EndIf
 
@@ -552,8 +573,8 @@ Sub Move_Rex
     If gameMap(Rex.y, Rex.x + 1) = None Then
       gameMap(Rex.y, Rex.x) = None : Inc Rex.x
       gameMap(Rex.y, Rex.x) = 3
-      GAMEFLAGS = GAMEFLAGS And 223
-      GAMEFLAGS = GAMEFLAGS Or 12 : Exit Sub
+      GAMEFLAGS = GAMEFLAGS And &b11011111
+      GAMEFLAGS = GAMEFLAGS Or &b00001100 : Exit Sub
     EndIf
   EndIf
 
@@ -562,8 +583,8 @@ Sub Move_Rex
     If gameMap(Rex.y + 1, Rex.x) = None Then
       gameMap(Rex.y, Rex.x) = None : Inc Rex.y
       gameMap(Rex.y, Rex.x) = 3
-      GAMEFLAGS = GAMEFLAGS And 223
-      GAMEFLAGS = GAMEFLAGS Or 12 : Exit Sub
+      GAMEFLAGS = GAMEFLAGS And &b11011111
+      GAMEFLAGS = GAMEFLAGS Or &b00001100 : Exit Sub
     EndIf
   EndIf
 
@@ -572,8 +593,8 @@ Sub Move_Rex
     If gameMap(Rex.y - 1, Rex.x) = None Then
       gameMap(Rex.y, Rex.x) = None : Inc Rex.y, -1
       gameMap(Rex.y, Rex.x) = 3
-      GAMEFLAGS = GAMEFLAGS And 223
-      GAMEFLAGS = GAMEFLAGS Or 12 : Exit Sub
+      GAMEFLAGS = GAMEFLAGS And &b11011111
+      GAMEFLAGS = GAMEFLAGS Or &b00001100 : Exit Sub
     EndIf
   EndIf
 
@@ -585,28 +606,28 @@ Sub Move_Rex
       If gameMap(Rex.y - 1, Rex.x) = None Then
         gameMap(Rex.y, Rex.x) = None : Inc Rex.y, -1
         gameMap(Rex.y, Rex.x) = 3
-        GAMEFLAGS = GAMEFLAGS And 223 Or 12 : Exit Sub
+        GAMEFLAGS = GAMEFLAGS And &b11011111 Or &b00001100 : Exit Sub
       EndIf
     Case 1
       'move South
       If gameMap(Rex.y + 1, Rex.x) = None Then
         gameMap(Rex.y, Rex.x) = None : Inc Rex.y
         gameMap(Rex.y, Rex.x) = 3
-        GAMEFLAGS = GAMEFLAGS And 223 Or 12 : Exit Sub
+        GAMEFLAGS = GAMEFLAGS And &b11011111 Or &b00001100 : Exit Sub
       EndIf
     Case 2
       'move East
       If gameMap(Rex.y, Rex.x + 1) = None Then
         gameMap(Rex.y, Rex.x) = None : Inc Rex.x
         gameMap(Rex.y, Rex.x) = 3
-        GAMEFLAGS = GAMEFLAGS And 223 Or 12 : Exit Sub
+        GAMEFLAGS = GAMEFLAGS And &b11011111 Or &b00001100 : Exit Sub
       EndIf
     Case 3
       'move WEST
       If gameMap(Rex.y, Rex.x - 1) = None Then
         gameMap(Rex.y, Rex.x) = None : Inc Rex.x, -1
         gameMap(Rex.y, Rex.x) = 3
-        GAMEFLAGS = GAMEFLAGS And 223 Or 12 : Exit Sub
+        GAMEFLAGS = GAMEFLAGS And &b11011111 Or &b00001100 : Exit Sub
       EndIf
   End Select
   Status = 0
@@ -631,9 +652,11 @@ End Sub
 Sub on_break
 'Option display 26,80:Print @(0,0);v_norm;
   Option Break 3
-  If Mite% = 1 Then
+  If mite% = 1 Then
     For f = 0 To 23 : Text 32, 24 + f * 8, String$(32, 32) : Next
     Text 152, 96, "BYE"
+  ElseIf mite% = 3 Then
+    showmaze
   Else
     Mode 1 : Font 1
     showmaze
@@ -656,7 +679,7 @@ End Sub
 'https://softtangouk.wixsite.com/soft-tango-uk/3d-monster-maze
 Sub generateMap
   Local Integer x, y, t, a, dr
-  For y = 0 To mapSize.y : For x = 0 To mapSize.x : gameMap(y, x) = wall : Next : Next
+  For y = 0 To mapSize.y : For x = 0 To mapSize.x: gameMap(y, x) = wall : Next : Next
   px = mapSize.x - 1 : py = mapSize.y - 1 : dr = 3 : gameMap(py, px) = 0 : t = 0
   Do
     a = Int(Rnd * 6) : Inc t, a : dr = Int(Rnd * 4)
@@ -666,7 +689,7 @@ Sub generateMap
   Loop While t < 1000
 End Sub
 
-Sub mkpath(Dir, leng)
+Sub mkpath(dir As Integer, leng As Integer)
   ' dir $00=North, $01=West, $02=South, $03=East
   Local Integer mx, my
   Select Case Dir
@@ -675,6 +698,7 @@ Sub mkpath(Dir, leng)
     Case 2 : mx = 0 : my = 1
     Case 3 : mx = 1 : my = 0
   End Select
+  Local Integer f
   For f = 1 To leng
     If Not(square(py, px)) Then gameMap(py, px) = None
     If (px + mx) > 0 And (px + mx) < mapSize.x Then Inc px, mx
@@ -682,7 +706,7 @@ Sub mkpath(Dir, leng)
   Next
 End Sub
 
-Function square(sy, sx)
+Function square(sy As Integer, sx As Integer) As Integer
   'prevent to create a square with 4 free areas
   Local Integer tp
   If gameMap(sy, sx + 1) + gameMap(sy + 1, sx + 1) + gameMap(sy + 1, sx) = 0 Then Inc tp
@@ -766,6 +790,21 @@ Function ctrl_gamemite(initi)
   EndIf
 
 End Function
+
+Function get_input() As Integer
+  Const k$ = Inkey$
+  If k$ = "" Then
+    If mite% = 1 Then
+      get_input = ctrl_gamemite(0)
+      Exit Function
+    EndIf
+  EndIf
+  get_input = Asc(k$)
+End Function
+
+Sub clear_input()
+  Do While get_input() : Loop
+End Sub
 
 '-------------------------------------
 'Data for REX Pseudo"Sprites"
@@ -1084,4 +1123,3 @@ DefineFont #9
   28440000 00442810 44440000 38043C44 087C0000 007C2010 30080E00 000E0808
   08080800 00080808 0C107000 00701010 00281400 00000000 A199423C 3C4299A1
 End DefineFont
-
