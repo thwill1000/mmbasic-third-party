@@ -15,12 +15,14 @@ Option Base 0
 Option Default None
 Option Explicit On
 
+If Mm.Device$ = "MMB4L" Then Option Device "Colour Maximite 2"
+
 Option Break 4 : On Key 3, on_break
 
 Cls
 
 ' Platform specific setup.
-Dim mite% = 0 ' PicoMiteVGA = 0, Game*Mite = 1, MMB4W = 2, MMB4L = 3
+Dim mite% = 0 ' PicoMiteVGA = 0, Game*Mite = 1, MMB4W = 2
 Dim Integer a
 Select Case Mm.Device$
   Case "PicoMiteVGA"
@@ -32,9 +34,9 @@ Select Case Mm.Device$
   Case "MMBasic for Windows"
     Mite% = 2
     Mode -7
-  Case "MMB4L"
-    mite% = 3
-    Graphics Window 0, -1, -1, 320, 240, 10
+  Case "Colour Maximite 2"
+    Mite% = 2
+    Mode 7
 End Select
 
 Dim Integer mapSize.x = 17

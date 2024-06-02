@@ -1,8 +1,12 @@
 ' 3D Maze Game
-' Copyright (c) 2022-2023 Martin Herhaus
+' Copyright (c) 2022-2024 Martin Herhaus
 ' GameMite port by Thomas H. Williams
 
-Const VERSION = 101301 ' 1.1.1
+Option Explicit On
+
+Const VERSION = 101302 ' 1.1.2
+
+If Mm.Device$ = "MMB4L" Then Option Device "Colour Maximite 2"
 
 '!define NO_INCLUDE_GUARDS
 
@@ -79,9 +83,12 @@ Page Write 1
 ctrl.init_keys()
 Dim ctrl$ = show_title$()
 
-WallC1%=0:WallC2%=RGB(RED)
+Dim WallC1% = 0
+Dim WallC2% = RGB(RED)
 'Read the XY-Coordinates of the Wall Elements Corners
 Dim Wall%(6,4,2)
+Dim N%, C%, F%
+Restore wall_data
 For N%=0 To 5 'Walls
  For C%=0 To 3 '4 Corners
    For F%=0 To 1 '2 Coordinates (X,Y)
@@ -89,9 +96,11 @@ For N%=0 To 5 'Walls
    Next
  Next
 Next
-MazeW%=24:MazeH%=24
+Dim MazeW%=24
+Dim MazeH%=24
 ' create array and fill
 Dim Maze$(MazeW%,MazeH%) length 1
+Dim ex_x%, ex_y%, key%, MovDir$, oldkey%, ox%, oy%, plrx%, plry%, show_map%, x%, xs%, y%, ys%
 restart_game:
 For x% = 0 To MazeW%
   For y% = 0 To MazeH%
@@ -234,14 +243,22 @@ Sub on_quit()
   End Select
 
   ' Store the current screen (rather than redraw it).
-  Local buf%(4799), pbuf% = Peek(VarAddr buf%()) ' 38400 bytes
-  Memory Copy Mm.Info(WriteBuff), pbuf%, 38400
+  If sys.is_platform%("pm*") Then
+    Local buf%(4799), pbuf% = Peek(VarAddr buf%()) ' 38400 bytes
+    Memory Copy Mm.Info(WriteBuff), pbuf%, 38400
+  Else
+    Page Copy 1 To 2
+  EndIf
 
   Const answer% = msgbox.show%(x%, y%, 22, 9, msg$, buttons$(), 1, ctrl$, fg%, bg%, frame%)
   If buttons$(answer%) = "Yes" Then end_program()
 
   ' Restore the current screen.
-  Memory Copy pbuf%, Mm.Info(WriteBuff), 38400
+  If sys.is_platform%("pm*") Then
+    Memory Copy pbuf%, Mm.Info(WriteBuff), 38400
+  Else
+    Page Copy 2 To 1
+  EndIf
   Page Copy 1 To 0, B
 End Sub
 
@@ -279,6 +296,7 @@ Sub draw_3d
     Next f%
  End Select
 End Sub
+
 'draw the elements
 Sub Draw_Element nr%,mir%,Gap%
 Local x1%,y1%,x2%,y2%,x3%,y3%,x4%,y4%
@@ -387,7 +405,7 @@ End Sub
 Function show_title$()
 '!if defined(GAMEMITE)
   '!uncomment_if true
-  Const txt$ = "Press START to play"
+  ' Const txt$ = "Press START to play"
   '!endif
 '!else
   If sys.is_platform%("gamemite") Then
@@ -457,6 +475,7 @@ Sub win_game()
 End Sub
 
 ' --- WallData ---
+wall_data:
 Data 0,0,0,239,10,10,10,229
 Data 11,11,11,228,50,50,50,189
 Data 51,51,51,188,80,80,80,159

@@ -282,7 +282,7 @@ Sub keys_cursor_ext(x%)
 End Sub
 
 Sub ctrl.open_driver(d$)
-  Cat ctrl.open_drivers$, d$ + ","
+  If Not InStr(ctrl.open_drivers$, d$) Then Cat ctrl.open_drivers$, d$ + ","
 End Sub
 
 Sub ctrl.close_driver(d$)
