@@ -10,6 +10,8 @@
 
   If Mm.Device$ = "MMB4L" Then Option Simulate "PicoMiteVGA"
 
+  Const PATH$ = Choice(Mm.Info(Path) = "NONE", "", Mm.Info(Path))
+
   'setup memory and screen
   Option DEFAULT integer
   MODE 2
@@ -17,32 +19,32 @@
 
 
   'load sprites
-  Sprite load "tt.spr",1
-  Sprite load "bs.spr",2
-  Sprite load "ts.spr",3
-  Sprite load "flap1.spr",4
-  Sprite load "flap2.spr",5
-  Sprite load "flapd2.spr",6
-  Sprite load "nulll.spr",7
-  Sprite load "one.spr",8
-  Sprite load "two.spr",9
-  Sprite load "three.spr",10
-  Sprite load "four.spr",11
-  Sprite load "five.spr",12
-  Sprite load "six.spr",13
-  Sprite load "seven.spr",14
-  Sprite load "eight.spr",15
-  Sprite load "nine.spr",16
-  Sprite load "flap3.spr",17
-  sprite load "bmedalw.spr",18'22
-  sprite load "smedalw.spr",19'23
-  sprite load "gmedalw.spr",20'24
-  sprite load "cup_medalw.spr",21'24
+  Sprite Load PATH$ + "gfx/tt.spr",1
+  Sprite Load PATH$ + "gfx/bs.spr",2
+  Sprite Load PATH$ + "gfx/ts.spr",3
+  Sprite Load PATH$ + "gfx/flap1.spr",4
+  Sprite Load PATH$ + "gfx/flap2.spr",5
+  Sprite Load PATH$ + "gfx/flapd2.spr",6
+  Sprite Load PATH$ + "gfx/nulll.spr",7
+  Sprite Load PATH$ + "gfx/one.spr",8
+  Sprite Load PATH$ + "gfx/two.spr",9
+  Sprite Load PATH$ + "gfx/three.spr",10
+  Sprite Load PATH$ + "gfx/four.spr",11
+  Sprite Load PATH$ + "gfx/five.spr",12
+  Sprite Load PATH$ + "gfx/six.spr",13
+  Sprite Load PATH$ + "gfx/seven.spr",14
+  Sprite Load PATH$ + "gfx/eight.spr",15
+  Sprite Load PATH$ + "gfx/nine.spr",16
+  Sprite Load PATH$ + "gfx/flap3.spr",17
+  Sprite Load PATH$ + "gfx/bmedalw.spr",18'22
+  Sprite Load PATH$ + "gfx/smedalw.spr",19'23
+  Sprite Load PATH$ + "gfx/gmedalw.spr",20'24
+  Sprite Load PATH$ + "gfx/cup_medalw.spr",21'24
 
 
   'load background on to layer N
   FRAMEBUFFER write n
-  if rnd()<0.5 then Load image "fl_day.bmp" else Load image "fl_night.bmp"
+  Load Image PATH$ + Choice(Rnd() < 0.5, "gfx/fl_day.bmp", "gfx/fl_night.bmp")
 
 
   'game variables
@@ -66,28 +68,28 @@
 
 
   'get old scores from flash
-  Open "score.txt" For input As #1
+  Open PATH$ + "score.txt" For input As #1
   For i=0 To 3:Input #1,a$:scores(i)=Val(a$):Next
   Close #1
 
 
   'title screen
   FRAMEBUFFER write l:CLS
-  Load image "flappy.bmp",70,50
+  Load image PATH$ + "gfx/flappy.bmp",70,50
   Pause 3000
 
 
   'create start instructions
   CLS
-  Load image "getready.bmp",70,40
-  Load image "taptap.bmp",136,110
+  Load image PATH$ + "gfx/getready.bmp",70,40
+  Load image PATH$ + "gfx/taptap.bmp",136,110
   Do : Loop While read_input$()=""
   CLS
 
 
   'init for main game loop
   Timer =0
-  Play modfile "sll3sfx2.mod"
+  Play modfile PATH$ + "sfx/sll3sfx2.mod"
   FRAMEBUFFER write l
 
 
