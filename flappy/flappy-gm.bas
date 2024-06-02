@@ -9,14 +9,14 @@
   ' flappy11_game_mite  version for Game*Mite
   ' flappy12  VGA version with night mode, better reward
   ' flappy13  Game*Mite version with GFX in BAS file.
- 
+
+If Mm.Device$ = "MMB4L" Then Option Simulate "Game*Mite"
   
-  ' path$="B:/flappy11/"
-  path$ = Choice(MM.Info(Path) <> "NONE", MM.Info(PATH), Cwd$)
+  Const PATH$ = Choice(MM.Info(Path) <> "NONE", MM.Info(PATH), Cwd$)
   
   'setup memory and screen
   Option DEFAULT integer
-  FRAMEBUFFER layer 9 'foreground layer, mageta = transparent
+  FRAMEBUFFER layer '9 'foreground layer, magenta = transparent
   FRAMEBUFFER create  'background layer for LCD blit
   
   If MM.Info(platform)="Game*Mite" Then init_gpio
@@ -29,13 +29,13 @@
   
   
   'load background on to layer N
+  Randomize(Timer)
   FRAMEBUFFER write F
   if rnd()<0.5 then
-    Load image path$+"fl_day.bmp"
+    Load image PATH$ + "gfx/fl_day.bmp"
   else
-    Load image path$+"fl_night.bmp"
+    Load image PATH$ + "gfx/fl_night.bmp"
   end if
-  
   
   'game variables
   h_beat=100    'speed of the game
@@ -87,7 +87,7 @@
   
   'init for main game loop
   Pause 500
-  Play modfile path$+"sll3sfx2.mod"
+  Play modfile PATH$ + "sfx/sll3sfx2.mod"
   Pause 500:Timer =0
   
   
@@ -159,7 +159,7 @@
     
     
     'move screen
-    Blit 2,0,0,0,319,208
+    Blit 2,0,0,0,319,209
     Line 318,0,318,239,2,RGB(magenta)  'erase old column line for line
     
     'update bird
