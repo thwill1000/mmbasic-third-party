@@ -6,7 +6,8 @@ Option Explicit On
 
 Const VERSION = 101302 ' 1.1.2
 
-If Mm.Device$ = "MMB4L" Then Option Device "Colour Maximite 2"
+' If Mm.Device$ = "MMB4L" Then Option Device "Colour Maximite 2"
+If Mm.Device$ = "MMB4L" Then Option Simulate "PicoMiteVGA"
 
 '!define NO_INCLUDE_GUARDS
 

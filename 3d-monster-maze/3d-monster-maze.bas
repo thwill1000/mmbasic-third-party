@@ -15,7 +15,7 @@ Option Base 0
 Option Default None
 Option Explicit On
 
-If Mm.Device$ = "MMB4L" Then Option Device "Colour Maximite 2"
+If Mm.Device$ = "MMB4L" Then Option Simulate "Colour Maximite 2"
 
 Option Break 4 : On Key 3, on_break
 

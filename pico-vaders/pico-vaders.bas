@@ -11,6 +11,8 @@ Option Base 0
 Option Default None
 Option Explicit On
 
+If Mm.Device$ = "MMB4L" Then Option Simulate "Colour Maximite 2"
+
 Const VERSION = 101303 ' 1.1.3
 
 '!define NO_INCLUDE_GUARDS
