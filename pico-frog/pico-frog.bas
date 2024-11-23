@@ -1,5 +1,3 @@
-' Transpiled on 20-04-2023 20:14:14
-
 'Pico Frog
 ' by Martin Herhaus 2022
 ' This is a Frogger game which resembles the original Arcade version
@@ -19,265 +17,51 @@
 '
 'Use OPTION CPUSPEED 252000 or OPTION CPUSPEED 378000
 '------------------------------------------
+
 Option BASE 0
 Option DEFAULT NONE
 Option EXPLICIT ON
 
-' BEGIN:     #Include "ctrl.inc" -----------------------------------------------
-' Copyright (c) 2022-2023 Thomas Hugo Williams
-' License MIT <https://opensource.org/licenses/MIT>
-'
-' MMBasic Controller Library
+Const VERSION = 101300 ' 1.1.0
 
-' Preprocessor value PICOMITE defined
-' Preprocessor value CTRL_ONE_PLAYER defined
-' Preprocessor value CTRL_NO_SNES defined
-' Preprocessor value CTRL_USE_ON_PS2 defined
-Const ctrl.VERSION = 908  ' 0.9.8
+'!dynamic_call atari_a
+'!dynamic_call nes_a
 
-' Button values as returned by controller driver subroutines.
-Const ctrl.R      = &h01
-Const ctrl.START  = &h02
-Const ctrl.HOME   = &h04
-Const ctrl.SELECT = &h08
-Const ctrl.L      = &h10
-Const ctrl.DOWN   = &h20
-Const ctrl.RIGHT  = &h40
-Const ctrl.UP     = &h80
-Const ctrl.LEFT   = &h100
-Const ctrl.ZR     = &h200
-Const ctrl.X      = &h400
-Const ctrl.A      = &h800
-Const ctrl.Y      = &h1000
-Const ctrl.B      = &h2000
-Const ctrl.ZL     = &h4000
+If Mm.Device$ = "MMB4L" Then
+  Option Simulate "PicoMiteVGA"
+  Option CodePage CMM2
+EndIf
 
-Const ctrl.OPEN  = -1
-Const ctrl.CLOSE = -2
-Const ctrl.SOFT_CLOSE = -3
+#Include "../splib/system.inc"
+#Include "../splib/ctrl.inc"
+#Include "../splib/game.inc"
+#Include "../splib/string.inc"
+#Include "../splib/msgbox.inc"
 
-' The NES standard specifies a 12 micro-second pulse, but all the controllers
-' I've tested work with 1 micro-second, and possibly less.
-Const ctrl.PULSE = 0.001 ' 1 micro-second
+'!dynamic_call game.on_break
+sys.override_break("game.on_break")
 
-' When a key is down the corresponding byte of this 256-byte map is set,
-' when the key is up then it is unset.
-'
-' Note that when using INKEY$ (as opposed to the CMM2 'KEYDOWN' function or
-' the PicoMiteVGA 'ON PS2' command) to read the keyboard we cannot detect
-' keyup events and instead automatically clear a byte after it is read.
-Dim ctrl.key_map%(31 + Mm.Info(Option Base))
+Dim CTRLS_TO_POLL$(2) = ("nes_a", "atari_a", "keys_cursor_ext")
 
-' Map used to convert PS/2 set 2 scan codes to entries in ctrl.key_map%().
-' The scan code first has to be converted into a single byte value,
-' see ctrl.on_ps2().
-Dim ctrl.scan_map%(31)
-
-' Gets controller configuration read from ".config" file.
-' If the file does not exist then prompts the user and creates it.
-' Currently can only return the values "pico_game_vga" or "generic".
-Function ctrl.get_config$()
-  Const CONFIG_FILE = "A:/.config"
-  Local i%, s$, key$, value$
-
-  If Mm.Info(Exists File CONFIG_FILE$) Then
-    Open CONFIG_FILE For Input As #1
-    Do
-      Line Input #1, s$
-      key$ = LCase$(Field$(Field$(s$, 1, "=", Chr$(34)),1, "#;", Chr$(34)))
-      value$ = LCase$(Field$(Field$(s$, 2, "=", Chr$(34)), 1, "#;", Chr$(34)))
-    Loop While s$ <> "" And key$ <> "pcb"
-    ctrl.get_config$ = value$
-  Else
-    Do
-      Line Input "Enable PicoGAME VGA controls [y|n] ? ", s$
-      s$ = LCase$(s$)
-    Loop While s$ <> "y" And s$ <> "n"
-    ctrl.get_config$ = Choice(s$ = "y", "pico-game-vga", "generic")
-    Open CONFIG_FILE For Output As #1
-    Print #1, "pcb = " + ctrl.get_config$
-  EndIf
-  Close #1
-
-  ' Replace '-' with '_'
-  For i% = 1 To Len(ctrl.get_config$)
-    If Peek(Var ctrl.get_config$, i%) = 45 Then Poke Var ctrl.get_config$, i%, 95
-  Next
-End Function
-
-' Initialises keyboard reading.
-'
-' @param  period%  CMM2 only - interval to read KEYDOWN state, default 40 ms.
-' @param  nbr%     CMM2 only - timer nbr to read KEYDOWN state, default 4.
-Sub ctrl.init_keys(period%, nbr%)
-  ctrl.term_keys()
-'  On Key ctrl.on_key()
-   Read Save
-   Restore ctrl.scan_map_data
-   Local i%
-   For i% = Bound(ctrl.scan_map%(), 0) To Bound(ctrl.scan_map%(), 1)
-     Read ctrl.scan_map%(i%)
-   Next
-   Read Restore
-   On Ps2 ctrl.on_ps2()
-End Sub
-
-Sub ctrl.on_ps2()
-  Local ps2% = Mm.Info(PS2)
-  Select Case ps2%
-    Case < &hE000 : Poke Var ctrl.key_map%(), Peek(Var ctrl.scan_map%(), ps2% And &hFF), 1
-    Case < &hF000 : Poke Var ctrl.key_map%(), Peek(Var ctrl.scan_map%(), (ps2% And &hFF) + &h80), 1
-    Case < &hE0F000 : Poke Var ctrl.key_map%(), Peek(Var ctrl.scan_map%(), ps2% And &hFF), 0
-    Case Else : Poke Var ctrl.key_map%(), Peek(Var ctrl.scan_map%(), (ps2% And &hFF) + &h80), 0
-  End Select
-End Sub
-
-' Terminates keyboard reading.
-Sub ctrl.term_keys()
-  ' On Key 0
-   On Ps2 0
-  Memory Set Peek(VarAddr ctrl.key_map%()), 0, 256
-  Do While Inkey$ <> "" : Loop
-End Sub
-
-Function ctrl.keydown%(i%)
-  ctrl.keydown% = Peek(Var ctrl.key_map%(), i%)
-  ' Poke Var ctrl.key_map%(), i%, 0
-End Function
-
-Function ctrl.poll_multiple$(drivers$(), mask%, duration%)
-  Local expires% = Choice(duration%, Timer + duration%, &h7FFFFFFFFFFFFFFF), i%
-  Do
-    For i% = Bound(drivers$(), 0) To Bound(drivers$(), 1)
-      If ctrl.poll_single%(drivers$(i%), mask%) Then
-        ctrl.poll_multiple$ = drivers$(i%)
-        Exit Do
-      EndIf
-    Next
-  Loop While Timer < expires%
-End Function
-
-' Opens, polls (for a maximum of 5ms) and closes a controller.
-'
-' @param  driver$  controller driver function.
-' @param  mask%    bit mask to match against.
-' @return          1 if any of the bits in the mask match what is read from the
-'                  controller, otherwise 0.
-Function ctrl.poll_single%(driver$, mask%)
-  On Error Ignore
-  Call driver$, ctrl.OPEN
-  If Mm.ErrNo = 0 Then
-    Local key%, t% = Timer + 5
-    Do
-      Call driver$, key%
-      If key% And mask% Then
-        ctrl.poll_single% = 1
-        ' Wait for user to release key.
-        Do While key% : Pause 5 : Call driver$, key% : Loop
-        Exit Do
-      EndIf
-    Loop While Timer < t%
-    Call driver$, ctrl.SOFT_CLOSE
-  EndIf
-  On Error Abort
-End Function
-
-' Reads the keyboard as if it were a controller.
-'
-' Note that the PicoMite has no KEYDOWN function so we are limited to
-' reading a single keypress from the input buffer and cannot handle multiple
-' simultaneous keys or properly handle a key being pressed and not released.
-Sub keys_cursor(x%)
-  If x% < 0 Then Exit Sub
-  x% =    ctrl.keydown%(32)  * ctrl.A
-  Inc x%, ctrl.keydown%(128) * ctrl.UP
-  Inc x%, ctrl.keydown%(129) * ctrl.DOWN
-  Inc x%, ctrl.keydown%(130) * ctrl.LEFT
-  Inc x%, ctrl.keydown%(131) * ctrl.RIGHT
-End Sub
-
-' Atari joystick on PicoGAME Port A.
-Sub atari_a(x%)
-  Select Case x%
-    Case >= 0
-      x% =    Not Pin(GP14) * ctrl.A
-      Inc x%, Not Pin(GP0)  * ctrl.UP
-      Inc x%, Not Pin(GP1)  * ctrl.DOWN
-      Inc x%, Not Pin(GP2)  * ctrl.LEFT
-      Inc x%, Not Pin(GP3)  * ctrl.RIGHT
-      Exit Sub
-    Case ctrl.OPEN
-      SetPin GP0, DIn : SetPin GP1, DIn : SetPin GP2, DIn : SetPin GP3, DIn : SetPin GP14, DIn
-    Case ctrl.CLOSE, ctrl.SOFT_CLOSE
-      SetPin GP0, Off : SetPin GP1, Off : SetPin GP2, Off : SetPin GP3, Off : SetPin GP14, Off
-  End Select
-End Sub
-
-' Reads port A connected to a NES gamepad.
-'
-' Note that the extra pulse after reading bit 7 (Right) should not be necessary,
-' but in practice some NES clone controllers require it to behave correctly.
-'
-'   GP2: Latch, GP3: Clock, GP1: Data
-Sub nes_a(x%)
-  Select Case x%
-    Case >= 0
-      Pulse GP2, ctrl.PULSE
-      x% =    Not Pin(GP1) * ctrl.A      : Pulse GP3, ctrl.PULSE
-      Inc x%, Not Pin(GP1) * ctrl.B      : Pulse GP3, ctrl.PULSE
-      Inc x%, Not Pin(GP1) * ctrl.SELECT : Pulse GP3, ctrl.PULSE
-      Inc x%, Not Pin(GP1) * ctrl.START  : Pulse GP3, ctrl.PULSE
-      Inc x%, Not Pin(GP1) * ctrl.UP     : Pulse GP3, ctrl.PULSE
-      Inc x%, Not Pin(GP1) * ctrl.DOWN   : Pulse GP3, ctrl.PULSE
-      Inc x%, Not Pin(GP1) * ctrl.LEFT   : Pulse GP3, ctrl.PULSE
-      Inc x%, Not Pin(GP1) * ctrl.RIGHT  : Pulse GP3, ctrl.PULSE
-      Exit Sub
-    Case ctrl.OPEN
-      SetPin GP1, Din : SetPin GP2, Dout : SetPin GP3, Dout
-      Pin(GP2) = 0 : Pin(GP3) = 0
-      nes_a(0) ' Discard the first reading.
-    Case ctrl.CLOSE, ctrl.SOFT_CLOSE
-      SetPin GP1, Off : SetPin GP2, Off : SetPin GP3, Off
-  End Select
-End Sub
-
-ctrl.scan_map_data:
-
-Data &h9C92919395009900, &h0060099496989A00, &h0031710000008B00, &h00327761737A0000
-Data &h0033346564786300, &h0035727466762000, &h0036796768626E00, &h003837756A6D0000
-Data &h0039306F696B2C00, &h002D703B6C2F2E00, &h00003D5B00270000, &h000023005D0A0000
-Data &h0008000000005C00, &h0000003734003100, &h001B383635322E30, &h0000392A2D332B9B
-Data &h0000000097000000, &h0000000000000000, &h0000000000008B00, &h0000000000000000
-Data &h0000000000000000, &h0000000000000000, &h0000000000000000, &h0000000000000000
-Data &h0000000000000000, &h0000000000000000, &h0000000000000000, &h0000000000000000
-Data &h0000000000000000, &h0000008682008700, &h0000808300817F84, &h0000889D00890000
-' END:       #Include "ctrl.inc" -----------------------------------------------
-
-Select Case ctrl.get_config$()
-  Case "pico_game_vga"
-    Dim CTRLS_TO_POLL$(2) = ("nes_a", "atari_a", "keys_cursor")
-  Case Else
-    Dim CTRLS_TO_POLL$(1) = ("keys_cursor", "keys_cursor")
-End Select
-
-Option Break 4: On Key 3, on_break
 Dim Col%(15)
 Dim FPOSX%,FPOSY%,FPDIR%,FPOSP%,FMOV%,tmp$,f%,RSTRT%,FDEL%,Level%,Homes%,Time%
 Dim flx%,fly%,fox%,foy%,cl1%,cl2%,snr%,mt%,FL%,FR%,JP%,n%,Score%,High%,GOV%
-Dim Lane$(10) Length 32,PLD$ Length 1,lps%(10),Fmax%,LTime%,Lives%,Tm%,FD%=0
+Dim Lane$(10) Length 32,lps%(10),Fmax%,LTime%,Lives%,Tm%,FD%=0
 Dim ld%(10)=(0,2,-1,1,2,-2,-2,4,-2,1,-1)
 Dim ly%(10)=(0,24,40,56,72,88,120,136,152,168,184)
 Dim ADSR%(10)=(25,25,25,24,22,20,18,13,7,3,0)
 Dim ADSR2%(10)=(2,8,12,17,22,20,15,10,5,2,0)
 Dim FRB%,SND%,LP%,TX%,TY%,TDX%,TDY%,spnr%,Slot%,Freq1%,Freq2%,Nest%(5),str%(20)
-Dim controller$
+Dim ctrl$
+Dim next_frame%
 
 '--------- prepare the Graphic
 High%=2500
 Restore colors:For f%=1 To 15:Read Col%(f%):Next f%
 JP%=600:FRB%=1:SND%=1:MODE 2:Font 9
+game.init_window("Pico-Frog", VERSION)
  FRAMEBUFFER CREATE
- FRAMEBUFFER LAYER Create
+ FRAMEBUFFER LAYER ' Create
 'Prepare the playing field
 disp
 Box 0,0,224,8,,COL%(2),COL%(2)
@@ -302,8 +86,8 @@ bing
 FRAMEBUFFER WRITE F
 read_Sprites
 Box 0,0,224,24,,0,0
-For f%=0 To 192 Step 8:Sprite write #29,f%,0: Next f%
-For f%=0 To 192 Step 48:Box f%,0,32,24,,0,0:Sprite write #28,f%,0: Next f%
+For f%=0 To 192 Step 8:Blit write #29,f%,0: Next f%
+For f%=0 To 192 Step 48:Box f%,0,32,24,,0,0:Blit write #28,f%,0: Next f%
 start:
 'level 1
  Lane$(01)="0WWWWw000WWWw00000WWWWw000WWw000"
@@ -321,7 +105,7 @@ FRAMEBUFFER WRITE L
 Box 0,0,224,240,,0,0
 ctrl.init_keys()
 startscreen
-Call controller$, ctrl.OPEN
+Call ctrl$, ctrl.OPEN
 Score%=0:Level%=1:Lives%=3
 ShowLives
 Create_street
@@ -364,6 +148,7 @@ LP%=1
 TX%=0:TY%=0:TDX%=2:TDY%=2
 spnr%=10
 Do
+   next_frame% = Timer + 40
    move_lanes
    FRAMEBUFFER COPY F,N
    FRAMEBUFFER WRITE L
@@ -371,7 +156,7 @@ Do
 
      Box 0,0,220,240,,0,0
      LTime%=Timer:tm%=1
-     Sprite write FPOSP%+1,FPOSX%,FPOSY%
+     Blit write FPOSP%+1,FPOSX%,FPOSY%
      ' Do While Inkey$<>"":Loop
    EndIf
    If FDEL% Then
@@ -393,40 +178,48 @@ Do
      Restore FKill
      JP%=220:SetTick 15,DieSnd,1
      Hide_Frog
-     FRAMEBUFFER WRITE L:Sprite write #30,FPOSX%,FPOSY%
+     FRAMEBUFFER WRITE L:Blit write #30,FPOSX%,FPOSY%
      FDEL%=20
      Inc Lives%,-1
      ShowLives
      If Lives%=0 Then GOV%=1:Restore Game_OverSng
      If Not GOV% Then GoTo restart1 Else GameOver
    EndIf
+   Do While Timer < next_frame% : Loop
  Loop
+
 Sub GameOver
-FRAMEBUFFER WRITE N
-Print @(72,108)" GAME OVER! "
+  Local deadline% = Timer + 10000, tc%
 
-Pause 10000
-disp
-FRAMEBUFFER WRITE F
-Box 0,24,224,80,,Col%(1),Col%(1)
-Box 0,120,224,80,,0,0
+  FRAMEBUFFER WRITE N
+  Do While Timer < deadline%
+    Colour Col%(tc%)
+    Inc tc%
+    tc% = tc% And 15
+    Text 72, 108, " GAME OVER! "
+    Pause 200
+  Loop
 
-FRAMEBUFFER WRITE L
-CLS
-Box 0,0,224,120,,Col%(1),Col%(1)
-Box 224,0,96,216,,COL%(7),COL%(1)
-Box 226,2,92,212,,COL%(7),COL%(1)
-Box 239,6,64,44,,Col%(6),COL%(4)
-GoTo Start
+  disp
+  FRAMEBUFFER WRITE F
+  Box 0,24,224,80,,Col%(1),Col%(1)
+  Box 0,120,224,80,,0,0
 
-
+  FRAMEBUFFER WRITE L
+  CLS
+  Box 0,0,224,120,,Col%(1),Col%(1)
+  Box 224,0,96,216,,COL%(7),COL%(1)
+  Box 226,2,92,212,,COL%(7),COL%(1)
+  Box 239,6,64,44,,Col%(6),COL%(4)
+  GoTo Start
 End Sub
+
 Sub ShowLives
 Local F%
 FRAMEBUFFER WRITE L
    Box 236,144,80,16,,col%(1),col%(1)
    For f%=1 To Lives%
-   Sprite write #11,222+f%*16,144
+   Blit write #11,222+f%*16,144,&h4
    Next f%
 End Sub
 
@@ -461,7 +254,7 @@ Sub startscreen
 '  Do While Inkey$<>"":Loop
   FRAMEBUFFER write N
   CLS
-  For x%=200 To 16 Step -8:For y%=16 To 184 Step 16:Sprite write #29,x%,y%
+  For x%=200 To 16 Step -8:For y%=16 To 184 Step 16:Blit write #29,x%,y%
   Next y%: Next x%
   Restore Logo
   For y%=1 To 17:Read str%(y%):Next
@@ -491,35 +284,45 @@ Sub startscreen
   Next
   FRAMEBUFFER write N
   Colour col%(7)
-  Print @(16,140)"    PicoMite Version    ";
-  Print @(16,148)" by Martin Herhaus 2022 ";
-  Print @(16,156)"  PicoGAME VGA Support  ";
-  Print @(16,164)"   by Thomas Williams   ";
+  Text 16, 140, "    PicoMite Version    "
+  Text 16, 148, " by Martin Herhaus 2022 "
+  Text 16, 156, "  PicoGAME VGA Support  "
+  Text 16, 164, "   by Thomas Williams   "
   Local start_key$ = "Press Fire,'A' or Space "
   If CTRLS_TO_POLL$(0) <> "nes_a" Then start_key$ = "      Press Space       "
-  Print @(16,184) start_key$;
+  Text 16, 184, start_key$
   Title$=" Game based on the Arcade Game Frogger - copyright Konami 1981  - "
   Title$=Title$+"The Graphics and Music are based upon but not the original ***"
   tc%=0: tk%=7
-  controller$ = ""
-  Do While controller$ = ""
-    controller$ = ctrl.poll_multiple$(CTRLS_TO_POLL$(), ctrl.A Or ctrl.B Or ctrl.START, 15)
+
+  Local key% = 0
+  Const mask% = ctrl.A Or ctrl.B Or ctrl.START Or ctrl.SELECT Or ctrl.HOME
+  ctrl$ = ""
+  Do While ctrl$ = ""
+    ctrl$ = ctrl.poll_multiple$(CTRLS_TO_POLL$(), mask%, 15, key%)
+    If key% And (ctrl.SELECT Or ctrl.HOME) Then
+      Call ctrl$, ctrl.OPEN
+      on_quit()
+      Call ctrl$, ctrl.CLOSE
+      ctrl$ = ""
+    EndIf
     If TK%=7 Then
-      Colour col%(6):Print @(14,176) Left$(title$,34)
-      Title$=Right$(title$,Len(title$)-1)+Left$(title$,1)
+      Colour col%(6):Text 14, 176, Left$(title$,34)
+      title$=Right$(title$,Len(title$)-1)+Left$(title$,1)
       Colour Col%(tc%):Inc tc%:TC%=TC% And 15
-      Print @(16,184) start_key$;
+      Text 16,184, start_key$
     Else
-      Sprite 17,176,16,176,197,8
+      Blit 17,176,16,176,197,8
       Box 207,168,1,8,,0,0
     EndIf
     Inc tk%,-1:If tk%=0 Then TK%=7
     'Pause 15
-   Loop
-   bing: Pause 500:start_sound
-   FRAMEBUFFER WRITE L
-   'clear the Game layer
-   Box 0,0,224,240,,0,0
+  Loop
+
+  bing: Pause 500:start_sound
+  FRAMEBUFFER WRITE L
+  'clear the Game layer
+  Box 0,0,224,240,,0,0
 End Sub
 
 Sub Get_frog_Undergrnd
@@ -552,7 +355,7 @@ Sub automove
    Inc FPOSX%,ld%(LP%)
    If FPOSX%>200 Then FPOSX%=200
    If FPOSX%<0 Then FPOSX%=0
-   Sprite write FPOSP%+1,FPOSX%,FPOSY%
+   Blit write FPOSP%+1,FPOSX%,FPOSY%
  EndIf
 End Sub
 
@@ -564,7 +367,7 @@ End Sub
 
 Sub Frog
   FRAMEBUFFER WRITE L
-    Sprite write FPOSP%+1,FPOSX%,FPOSY%
+    Blit write FPOSP%+1,FPOSX%,FPOSY%
   FRAMEBUFFER WRITE F
 End Sub
 
@@ -593,7 +396,7 @@ FDEL%=70
 Inc Homes%
 'draw HomeFrog in the Slot
 FRAMEBUFFER WRITE F
-Sprite write #26,8+(slot%-1)*48,8
+Blit write #26,8+(slot%-1)*48,8
 'Last_Slot?
 If Homes%=5 Then
   Homes%=0:Inc Level%
@@ -634,26 +437,14 @@ Sub Move_Player
         If FPOSX%>200 Then FPOSX%=200
       EndIf
       FMout:
-      Sprite write FPOSP%+1,FPOSX%,FPOSY%
+      Blit write FPOSP%+1,FPOSX%,FPOSY%
       FMOV%=0
       Exit Sub
       FRAMEBUFFER write f
     EndIf
 
-  ' Read selected controller/keyboard
-  Local key%
-  Call controller$, key%
-  Select Case key%
-    Case ctrl.UP : PLD$="U"
-    Case ctrl.DOWN : PLD$="D"
-    Case ctrl.LEFT : PLD$="L"
-    Case ctrl.RIGHT : PLD$="R"
-    Case Else : PLD$ = ""
-  End Select
-
-  'UP
-   Select Case PLD$
-      Case "U"
+   Select Case get_input%()
+      Case ctrl.UP
         If FPOSY%>16 Then
           If FPOSY%-8 <32 Then
             test_home
@@ -662,20 +453,17 @@ Sub Move_Player
           FPDIR%=1:FPOSP%=10:FMOV%=4
           Fjump 0,-8
         EndIf
-  'down
-     Case "D"
-       If PLD$="D" And FPOSY%<200  Then
-         FPDIR%=2:FPOSP%=12:FMOV%=4
-         Fjump 0,8
+      Case ctrl.DOWN
+        If FPOSY%<200  Then
+          FPDIR%=2:FPOSP%=12:FMOV%=4
+          Fjump 0,8
+        EndIf
+     Case ctrl.LEFT
+       If FPOSX%>8 Then
+         FPDIR%=3:FPOSP%=14:FMOV%=4
+         FJump -8,0
        EndIf
-  'left
-     Case "L"
-      If FPOSX%>8 Then
-        FPDIR%=3:FPOSP%=14:FMOV%=4
-        FJump -8,0
-      EndIf
-  'right
-     Case "R"
+     Case ctrl.RIGHT
        If FPOSX%<208 Then
          FPDIR%=4:FPOSP%=16:FMOV%=4
          Fjump 8,0
@@ -683,13 +471,27 @@ Sub Move_Player
   End Select
 End Sub
 
+Function get_input%()
+  Call ctrl$, get_input%
+  If Not get_input% Then keys_cursor_ext(get_input%)
+  Select Case get_input%
+    Case ctrl.UP, ctrl.DOWN, ctrl.LEFT, ctrl.RIGHT
+      ' Valid movement inputs.
+    Case ctrl.SELECT, ctrl.START, ctrl.HOME
+      on_quit()
+      get_input% = 0
+    Case Else
+      get_input% = 0
+  End Select
+End Function
+
 Sub FJump(FDX%,FDY%)
     SetTick 20,jump,1
     FRAMEBUFFER WRITE l
     Box FPOSX%,FPOSY%,16,16,,0,0
     Inc FPOSX%,FDX%
     Inc FPOSY%,FDY%
-    Sprite write FPOSP%,FPOSX%,FPOSY%
+    Blit write FPOSP%,FPOSX%,FPOSY%
 End Sub
 
 
@@ -703,7 +505,7 @@ Local f As integer,co%,tst$
   For f=1 To 10
     co%=(f<6)
     If ld%(f)>0 Then
-     Sprite 0,ly%(f),ld%(f),ly%(f),224-ld%(f),16
+     Blit 0,ly%(f),ld%(f),ly%(f),224-ld%(f),16
      Box 0,ly%(f),LD%(f),16,,col%(co%),col%(co%)
      Inc Lps%(f),LD%(f)
      ' if Pixelsteps>= 16 Rotate the Lane$() Right
@@ -715,10 +517,10 @@ Local f As integer,co%,tst$
      If tst$<>"0" Then
         snr%=Instr("BrCRTtwWU",tst$)
         'Add2Lane snr%,-14,ly%(f),Lps%(f)
-        Sprite write snr%,-12+Lps%(f),ly%(f)
+        Blit write snr%,-12+Lps%(f),ly%(f)
      EndIf
     Else
-      Sprite -ld%(f),ly%(f),0,ly%(f),222,16
+      Blit -ld%(f),ly%(f),0,ly%(f),222,16
       Box 223+ld%(f),ly%(f),-ld%(f),16,,col%(co%),col%(co%)
       Inc Lps%(f),-LD%(F)
       ' if Pixelsteps>= 16 Rotate the Lane$() Left
@@ -731,14 +533,14 @@ Local f As integer,co%,tst$
         'add Sprite to the lane
          snr%=Instr("BrCRTtwWU",tst$)
          Box 222-Lps%(f),ly%(f),18,16,,col%(co%),col%(co%)
-         Sprite write snr%,220-Lps%(f),ly%(f)
+         Blit write snr%,220-Lps%(f),ly%(f)
       EndIf
     EndIf
    Next f
 End Sub
 Sub Add2Lane SNo%,Posx%,Posy%,Offs%
   FRAMEBUFFER WRITE F
-  Sprite write #SNo%,Posx%+offs%,Posy%
+  Blit write #SNo%,Posx%+offs%,Posy%
 End Sub
 
 'some Decoration
@@ -765,7 +567,7 @@ For LNE%=1 To 10
    For lx%=1 To 13
    tst$=Mid$(Lane$(LNE%),lx%,1)
    snr%=Instr("BrCRTtwWU",tst$)
-   If snr%<>0 Then Sprite write #snr%,16*lx%,ly%(LNE%)
+   If snr%<>0 Then Blit write #snr%,16*lx%,ly%(LNE%)
     Next lx%
 Next LNE%
 End Sub
@@ -801,7 +603,7 @@ Sub read_Sprites
      Pixel n%-1,136-p%,COL%(Val("&H"+m$)))
     Next n%
    Next p%
-   Sprite read #nr%,0,120,16,16
+   Blit read #nr%,0,120,16,16
   Next nr%
   For nr%=7 To 9
    For p%=1 To 16
@@ -810,7 +612,7 @@ Sub read_Sprites
     Pixel n%-1,p%+119,COL%(Val("&H"+Mid$(Byt$,n%,1)))
     Next n%
    Next p%
-   Sprite read #nr%,0,120,16,16
+   Blit read #nr%,0,120,16,16
   Next nr%
   'Frog (sprite 10 - 17)
   'Read the Frog-Sprites and rotate in all Directions ;-)
@@ -824,10 +626,10 @@ Sub read_Sprites
      Pixel 64-p%-1,n%+135,COL%(Val("&H"+m$))
     Next n%
    Next p%
-  Sprite read 10,0,120,16,16:Sprite read 11,0,136,16,16
-  Sprite read 12,16,136,16,16:Sprite read 13,16,120,16,16
-  Sprite read 14,32,120,16,16:Sprite read 15,48,120,16,16
-  Sprite read 16,48,136,16,16:Sprite read 17,32,136,16,16
+  Blit read 10,0,120,16,16 : Blit read 11,0,136,16,16
+  Blit read 12,16,136,16,16 : Blit read 13,16,120,16,16
+  Blit read 14,32,120,16,16 : Blit read 15,48,120,16,16
+  Blit read 16,48,136,16,16 : Blit read 17,32,136,16,16
   Box 0,120,96,32,,0,0
   'Lady Frog (sprite 18 - 25) same template but swapped colors
   Restore FROG11
@@ -845,10 +647,10 @@ Sub read_Sprites
     Pixel 64-p%-1,n%+135,COL%(Val("&H"+m$))
    Next n%
   Next p%
-  Sprite read 18,0,120,16,16:Sprite read 19,0,136,16,16
-  Sprite read 20,16,136,16,16:Sprite read 21,16,120,16,16
-  Sprite read 22,32,120,16,16:Sprite read 23,48,120,16,16
-  Sprite read 24,48,136,16,16:Sprite read 25,32,136,16,16
+  Blit read 18,0,120,16,16 : Blit read 19,0,136,16,16
+  Blit read 20,16,136,16,16 : Blit read 21,16,120,16,16
+  Blit read 22,32,120,16,16 : Blit read 23,48,120,16,16
+  Blit read 24,48,136,16,16 : Blit read 25,32,136,16,16
   Box 0,120,96,32,,0,0
   ' Frog_Home 26, Fly 27
   For p%=1 To 32
@@ -857,8 +659,8 @@ Sub read_Sprites
    Pixel n%-1,p%+119,COL%(Val("&H"+Mid$(Byt$,n%,1)))
    Next n%
   Next p%
-  Sprite read #26,0,120,16,16
-  Sprite read #27,0,136,16,16
+  Blit  read #26,0,120,16,16
+  Blit read #27,0,136,16,16
   Box 0,120,96,32,,0,0
   For p%=1 To 24
    Read Byt$:Byt$=expand$(Byt$)
@@ -866,7 +668,7 @@ Sub read_Sprites
    Pixel n%-1,p%+119,COL%(Val("&H"+Mid$(Byt$,n%,1)))
    Next n%
   Next p%
-  Sprite read #28,0,120,32,24
+  Blit read #28,0,120,32,24
   Box 0,120,32,32,,0,0
   For p%=1 To 24
    Read Byt$:Byt$=expand$(Byt$)
@@ -874,7 +676,7 @@ Sub read_Sprites
    Pixel n%-1,p%+119,COL%(Val("&H"+Mid$(Byt$,n%,1)))
    Next n%
   Next p%
-  Sprite read #29,0,120,8,24
+  Blit read #29,0,120,8,24
   Box 0,120,32,32,,0,0
   For p%=1 To 16
    Read Byt$:Byt$=expand$(Byt$)
@@ -882,7 +684,7 @@ Sub read_Sprites
    Pixel n%-1,p%+119,COL%(Val("&H"+Mid$(Byt$,n%,1)))
    Next n%
   Next p%
-  Sprite read #30,0,120,16,16
+  Blit read #30,0,120,16,16
   Box 0,120,32,32,,0,0
 
 End Sub
@@ -916,7 +718,7 @@ End Sub
 Sub jump
   Play sound 4,"B","Q",JP%,25
   Inc JP%,100
-  If JP%>1500 Then Play sound 4,"B","O",JP%,0: SetTick 0,0,1:JP%=600
+  If JP%>1500 Then Play sound 4,"B","O",JP%,0 : SetTick 0,0,1 : JP%=600
 End Sub
 
 Sub music
@@ -950,22 +752,15 @@ Function expand$(pxl$)
   Next n%
   expand$=tmp$
 End Function
-'
-' Interrupt routine to stop music, close Buffers
-' and restore default Break Key.
-'
-Sub on_break
- Play Stop
- Sprite CLOSE all
- FRAMEBUFFER CLOSE
- ctrl.term_keys()
- If controller$ <> "" Then Call controller$, ctrl.CLOSE
- CLS
- Option Break 3
- End
+
+Sub on_quit()
+  msgbox.beep(1)
+  Local buttons$(1) Length 3 = ("Yes", "No")
+  Const msg$ = "Quit game?", fg% = Rgb(Blue), bg% = Rgb(Yellow), flags% = msgbox.NO_PAGES
+  Const answer% = msgbox.show%(3, 8, 22, 9, msg$, buttons$(), 1, ctrl$, fg%, bg%, fg%, flags%)
+  If buttons$(answer%) = "Yes" Then game.end()
 End Sub
-'
-'
+
 '----------Data Section----------
 ' I try to store everything in this File to make it possible to run
 ' without an SD Card
