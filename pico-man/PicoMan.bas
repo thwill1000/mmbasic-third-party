@@ -10,6 +10,8 @@ Option Default Integer
 Option Explicit
 Option Base 0
 
+If Mm.Device$ = "MMB4L" Then Option Simulate "Game*Mite"
+
 Const cWall = RGB(Blue)
 Const cDot = RGB(White)
 Const cSuper = RGB(155, 255, 126)

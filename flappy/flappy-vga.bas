@@ -15,7 +15,7 @@
   'setup memory and screen
   Option DEFAULT integer
   MODE 2
-  FRAMEBUFFER layer '9 'magenta = transparent
+  FRAMEBUFFER Layer 9 ' Magenta = transparent
 
 
   'load sprites
@@ -77,7 +77,6 @@
   FRAMEBUFFER write l:CLS
   Load image PATH$ + "gfx/flappy.bmp",70,50
   Pause 3000
-
 
   'create start instructions
   CLS
@@ -218,8 +217,8 @@ Sub you_die
 
   i=rangescores(pn-2) 'check if the score should give a medal
 
-  Load image "gameover.bmp",70,30
-  Load image "score.bmp",80,90
+  Load Image PATH$ + "gfx/gameover.bmp",70,30
+  Load Image PATH$ + "gfx/score.bmp",80,90
   writenumber(80+129,90+27,pn-2)          'your score this run
   writenumber(80+129,90+60,scores(3))     'all time top score for winning the cup
   if i>=0 then sprite write 18+i,100,120,0  'the medal/cup sprite

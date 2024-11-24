@@ -7,6 +7,8 @@
 Option Explicit
 Option Default Integer
 
+If Mm.Device$ = "MMB4L" Then Option Simulate "Game*Mite"
+
 Randomize Timer
 Const TitleF = 2, TitleFS = 1        ' font and font scaling used for the title
 Const GeneralF = 1, GeneralFS = 1    ' font and font scaling used for everything else
