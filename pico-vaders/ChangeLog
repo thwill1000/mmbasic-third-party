@@ -1,6 +1,11 @@
 ChangeLog
 ---------
 
+Version 1.1.4 - 18-Dec-2024:
+  - Added support for running on MMB4L 0.7.0.
+  - Added support for running from MMBasic Game*Pack.
+  - Updated to use latest version of 'splib'.
+
 Version 1.1.3 - 24-Dec-2023:
   - Fixed issue when run on PicoMite 5.08 firmware where the game would slow
     down and become unplayable once most of the aliens were destroyed.
