@@ -1,6 +1,6 @@
 ' PicoVaders
 '
-' Copyright (c) 2022-2023 Martin Herhaus
+' Copyright (c) 2022-2024 Martin Herhaus
 '
 ' Concept based on the Game Space Invaders
 ' (c) 1978 by Tomohiro Nishikado of Taito
@@ -11,11 +11,7 @@ Option Base 0
 Option Default None
 Option Explicit On
 
-Const VERSION = 101303 ' 1.1.3
-
-'!define NO_INCLUDE_GUARDS
-
-#Include "../splib/system.inc"
+Const VERSION = 101304 ' 1.1.4
 
 '!if defined(PICOMITEVGA)
   '!replace { Page Copy 1 To 0 , B } { FrameBuffer Copy F , N , B }
@@ -23,31 +19,36 @@ Const VERSION = 101303 ' 1.1.3
   '!replace { Page Write 1 } { FrameBuffer Write F }
   '!replace { Page Write 0 } { FrameBuffer Write N }
   '!replace { Mode 7 } { Mode 2 : FrameBuffer Create }
-'!elif defined(PICOMITE) || defined(GAMEMITE)
+  '!replace { Option Simulate "Colour Maximite 2" } { Option Simulate "PicoMiteVGA" }
+  '!dynamic_call atari_a
+  '!dynamic_call snes_a
+'!elif defined(GAMEMITE)
   '!replace { Page Copy 1 To 0 , B } { FrameBuffer Copy F , N }
   '!replace { Page Copy 0 To 1 , B } { FrameBuffer Copy N , F }
   '!replace { Page Write 1 } { FrameBuffer Write F }
   '!replace { Page Write 0 } { FrameBuffer Write N }
   '!replace { Mode 7 } { FrameBuffer Create }
-'!endif
-
-#Include "../splib/ctrl.inc"
-#Include "../splib/string.inc"
-#Include "../splib/msgbox.inc"
-
-'!if defined(GAMEMITE)
-  #Include "../splib/gamemite.inc"
+  '!replace { Option Simulate "Colour Maximite 2" } { Option Simulate "Game*Mite" }
   '!dynamic_call ctrl.gamemite
-  '!dynamic_call keys_cursor_ext
 '!else
-  '!dynamic_call atari_a
   '!dynamic_call atari_dx
-  '!dynamic_call keys_cursor_ext
-  '!dynamic_call nes_a
   '!dynamic_call wii_classic_3
 '!endif
 
-sys.override_break("break_cb")
+If Mm.Device$ = "MMB4L" Then
+  Option Simulate "Colour Maximite 2"
+  Option CodePage CMM2
+EndIf
+
+'!define NO_INCLUDE_GUARDS
+#Include "../splib/system.inc"
+#Include "../splib/ctrl.inc"
+#Include "../splib/file.inc"
+#Include "../splib/string.inc"
+#Include "../splib/msgbox.inc"
+#Include "../splib/game.inc"
+
+sys.override_break("on_break")
 
 '!if defined(GAMEMITE)
   '!uncomment_if true
@@ -56,11 +57,11 @@ sys.override_break("break_cb")
   '!endif
 '!else
 If sys.is_platform%("pmvga") Then
-  Dim CONTROLLERS$(2) = ("keys_cursor_ext", "nes_a", "atari_a")
+  Dim CONTROLLERS$(2) = ("keys_cursor_ext", "snes_a", "atari_a")
 ElseIf sys.is_platform%("gamemite") Then
   Dim CONTROLLERS$(1) = ("keys_cursor_ext", "ctrl.gamemite")
 ElseIf sys.is_platform%("pm*", "mmb4w") Then
-  Dim CONTROLLERS$(1) = ("keys_cursor_ext", "keys_cursor_ext")
+  Dim CONTROLLERS$(1) = ("keys_cursor_ext", "ctrl.no_controller")
 ElseIf sys.is_platform%("cmm2*") Then
   Dim CONTROLLERS$(2) = ("keys_cursor_ext", "wii_classic_3", "atari_dx")
 Else
@@ -73,8 +74,10 @@ ctrl.init_keys()
 
 Mode 7
 Font 1
+game.init_window("PicoVaders", VERSION)
 
-Const HIGH_SCORE_FILENAME$ = "A:/high-scores/pico-vaders.csv"
+Const HIGH_SCORE_FILENAME$ = Mm.Info$(Path) + "high-score.csv"
+' Const HIGH_SCORE_FILENAME$ = "A:/high-scores/pico-vaders.csv"
 Const X_MAX% = 204
 
 Dim ctrl$          ' Current controller driver.
@@ -231,7 +234,7 @@ Sub init_sound()
 End Sub
 
 Sub read_high_score()
-  If Mm.Info(Exists File HIGH_SCORE_FILENAME$) Then
+  If file.exists%(HIGH_SCORE_FILENAME$, "file") Then
     Local s$
     Open HIGH_SCORE_FILENAME$ For Input As #1
     Line Input #1, s$
@@ -241,12 +244,13 @@ Sub read_high_score()
 End Sub
 
 Sub write_high_score()
-  If Not Mm.Info(Exists Dir "A:/high-scores") Then
-    Const drv$ = Mm.Info$(Drive)
-    Drive "A:"
-    MkDir "A:/high-scores"
-    Drive drv$
-  EndIf
+  If file.mkdir%(file.get_parent$(HIGH_SCORE_FILENAME$)) <> sys.SUCCESS Then Error sys.err$
+  ' If Not Mm.Info(Exists Dir "A:/high-scores") Then
+  '   Const drv$ = Mm.Info$(Drive)
+  '   Drive "A:"
+  '   MkDir "A:/high-scores"
+  '   Drive drv$
+  ' EndIf
   Open HIGH_SCORE_FILENAME$ For Output As #1
   Print #1, "PLAYER 1, " Str$(high_score%)
   Close #1
@@ -365,16 +369,20 @@ Function intro_alien%(x%, dir%)
 End Function
 
 ' Waits the given duration% polling for the user to choose a
-' controller by pressing A or START.
+' controller by pressing A, HOME, SELECT or START.
 Function poll_ctrl%(duration%)
+  Const mask% = ctrl.A Or ctrl.HOME Or ctrl.SELECT Or ctrl.START
   Local d% = duration%
   Do While d% > 0 Or duration% = 0
-    ctrl$ = ctrl.poll_multiple$(CONTROLLERS$(), ctrl.A Or ctrl.START Or ctrl.SELECT, d%, poll_ctrl%)
-    If poll_ctrl% <> ctrl.SELECT Then Exit Do
-    Call ctrl$, ctrl.OPEN
-    on_quit()
-    Call ctrl$, ctrl.CLOSE
-    poll_ctrl% = 0
+    ctrl$ = ctrl.poll_multiple$(CONTROLLERS$(), mask%, d%, poll_ctrl%)
+    If poll_ctrl% And (ctrl.SELECT Or ctrl.HOME) Then
+      Call ctrl$, ctrl.OPEN
+      on_quit()
+      Call ctrl$, ctrl.CLOSE
+      poll_ctrl% = 0
+    Else If poll_ctrl% Then
+      Exit Do
+    EndIf
   Loop
 End Function
 
@@ -383,9 +391,9 @@ Function wait%(duration%, mask%)
   Local t% = Timer + duration%
   Do While Timer < t%
     Call ctrl$, wait%
-    If wait% = ctrl.SELECT Then on_quit()
-    wait% = wait% And mask%
-    If wait% Then Exit Do
+    If Not wait% Then keys_cursor_ext(wait%)
+    If wait% And (ctrl.SELECT Or ctrl.HOME) Then on_quit()
+    If wait% And mask% Then Exit Do
     Pause 5
   Loop
 End Function
@@ -394,42 +402,23 @@ End Function
 Sub on_quit()
   msgbox.beep(1)
   Local buttons$(1) Length 3 = ("Yes", "No")
-  Const msg$ = "    Quit game?"
-  Const x% = 9, y% = 5, fg% = Rgb(White), bg% = Rgb(Black), frame% = Rgb(Green)
+  Const msg$ = "Quit game?"
+  Const fg% = Rgb(White), bg% = Rgb(Black), frame% = Rgb(Green), flags% = msgbox.NO_PAGES
+  Const x% = 9, y% = 5, w% = 22, h% = 9, btn% = 1
 
-  Page Copy 0 To 1, B ' Store screen
-  Const a% = msgbox.show%(x%, y%, 22, 9, msg$, buttons$(), 1, ctrl$, fg%, bg%, frame%, msgbox.NO_PAGES)
+'  Page Copy 0 To 1, B ' Store screen
+  Const a% = msgbox.show%(x%, y%, w%, h%, msg$, buttons$(), btn%, ctrl$, fg%, bg%, frame%, flags%)
   If buttons$(a%) = "Yes" Then end_program()
-  Page Copy 1 To 0, B ' Restore screen.
-
-  ctrl.wait_until_idle(ctrl$)
+'  Page Copy 1 To 0, B ' Restore screen.
 End Sub
 
-'!dynamic_call break_cb
-Sub break_cb()
+'!dynamic_call on_break
+Sub on_break()
   end_program(1)
 End Sub
 
 Sub end_program(break%)
-'!if defined(GAMEMITE)
-  '!uncomment_if true
-  ' gamemite.end(break%)
-  '!endif
-'!else
-  If sys.is_platform%("gamemite") Then
-    gamemite.end(break%)
-  Else
-    Page Write 0
-    Colour Rgb(White), Rgb(Black)
-    Cls
-    sys.restore_break()
-    ctrl.term_keys()
-    On Error Ignore
-    Call ctrl$, ctrl.CLOSE
-    On Error Abort
-    End
-  EndIf
-'!endif
+  game.end(break%)
 End Sub
 
 Sub start_ufo()
@@ -742,6 +731,7 @@ End Sub
 Sub move_player()
   Local i%, key%
   Call ctrl$, key%
+  If key% = 0 Then keys_cursor_ext(key%)
   Select Case key%
     Case 0
       Exit Sub
@@ -754,7 +744,7 @@ Sub move_player()
       If Not ua% Then Inc myst%, Int(Rnd * 3)
       ba% = 1 : bx% = plx% + 7 : by% = 210
       For i% = 1000 To 1 Step -50 : Play Tone 1000 + i%, 1000 + i%, 5 : Pause 2 : Next
-    Case ctrl.SELECT, ctrl.START
+    Case ctrl.HOME, ctrl.SELECT, ctrl.START
       on_quit()
   End Select
 End Sub
