@@ -24,14 +24,14 @@ Const VERSION = 101300 ' 1.1.0
   '!replace { Page Write 0 } { FrameBuffer Write N }
   '!replace { Mode 7 } { Mode 2 : FrameBuffer Create }
   '!replace { Option Simulate "Colour Maximite 2" } { Option Simulate "PicoMiteVGA" }
-  '!replace { Const ctrl$ = "wii_classic_3" } { Const ctrl$ = "snes_a" }
+  '!replace { Dim ctrl$ = "wii_classic_3" } { Dim ctrl$ = "snes_a" }
   '!dynamic_call snes_a
 '!elif defined(PICOMITE) || defined(GAMEMITE)
   '!replace { Page Copy 1 To 0 , B } { FrameBuffer Copy F , N }
   '!replace { Page Write 1 } { FrameBuffer Write F }
   '!replace { Page Write 0 } { FrameBuffer Write N }
   '!replace { Mode 7 } { FrameBuffer Create }
-  '!replace { Const ctrl$ = "wii_classic_3" } { Const ctrl$ = "ctrl.gamemite" }
+  '!replace { Dim ctrl$ = "wii_classic_3" } { Dim ctrl$ = "ctrl.gamemite" }
   '!dynamic_call ctrl.gamemite
 '!else
   '!dynamic_call wii_classic_3
@@ -154,7 +154,7 @@ Do
     Case ctrl.UP
       GAMEFLAGS = GAMEFLAGS Or  &b01000000 ' set bit 6
       GAMEFLAGS = GAMEFLAGS And &b11011111 ' reset bit 5
-      Move
+      move_player()
       GAMEFLAGS = GAMEFLAGS And &b11011111 ' reset bit 5
   End Select
 
@@ -377,7 +377,7 @@ End Function
 'Player related Subs
 '===========================================
 
-Sub Move
+Sub move_player()
 'move Player position one step forward
   Select Case direction
     Case 0
