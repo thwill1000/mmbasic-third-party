@@ -1,21 +1,42 @@
-  'flappy bird for picomiteVGA
+  ' Flappy bird for PicoMiteVGA.
 
-  'versions
-  ' flappy7   first release
-  ' flappy8   fixed collision bug, screen corruption in fall
-  ' flappy9   fl_day2 background and pipe/animation adaptions
-  ' flappy10  sfx added, end game added, fl_day6 background, store scores
-  ' flappy11  development for the LCD version (uses PETSCII graphics mechanism)
-  ' flappy12  VGA version for development, night mode, cup, progressive speed
+  ' Versions
+  ' flappy7   First release.
+  ' flappy8   Fixed collision bug, screen corruption in fall.
+  ' flappy9   fl_day2 background and pipe/animation adaptions.
+  ' flappy10  sfx added, end game added, fl_day6 background, store scores.
+  ' flappy11  Development for the LCD version (uses PETSCII graphics mechanism).
+  ' flappy12  VGA version for development, night mode, cup, progressive speed.
+  ' flappy13  Game*Mite version with GFX in BAS file.
+  ' v1.14.0   First MMB4L / Game*Pack version.
 
-  If Mm.Device$ = "MMB4L" Then Option Simulate "PicoMiteVGA"
+  Option Base 0
+  Option Default Integer
+  Option Explicit On
+
+  Const VERSION = 114300 ' 1.14.0
+
+  If Mm.Device$ = "MMB4L" Then
+    Option Simulate "PicoMiteVGA"
+    Option CodePage CMM2
+  EndIf
+
+  #Include "../splib/system.inc"
+  #Include "../splib/ctrl.inc"
+  #Include "../splib/string.inc"
+  #Include "../splib/msgbox.inc"
+  #Include "../splib/game.inc"
+
+  '!dynamic_call game.on_break
+  sys.override_break("game.on_break")
 
   Const PATH$ = Choice(Mm.Info(Path) = "NONE", "", Mm.Info(Path))
+  Const STATE_SHOW_TITLE = 0, STATE_PLAY_GAME = 1, STATE_LOSE_GAME = 2
 
   'setup memory and screen
-  Option DEFAULT integer
   MODE 2
-  FRAMEBUFFER layer '9 'magenta = transparent
+  game.init_window("Flappy Bird for MMBasic", VERSION)
+  FRAMEBUFFER Layer 9 ' Magenta = transparent
 
 
   'load sprites
@@ -36,10 +57,44 @@
   Sprite Load PATH$ + "gfx/eight.spr",15
   Sprite Load PATH$ + "gfx/nine.spr",16
   Sprite Load PATH$ + "gfx/flap3.spr",17
-  Sprite Load PATH$ + "gfx/bmedalw.spr",18'22
-  Sprite Load PATH$ + "gfx/smedalw.spr",19'23
-  Sprite Load PATH$ + "gfx/gmedalw.spr",20'24
-  Sprite Load PATH$ + "gfx/cup_medalw.spr",21'24
+  Sprite Load PATH$ + "gfx/no_medal.spr",18
+  Sprite Load PATH$ + "gfx/bmedalw.spr",19
+  Sprite Load PATH$ + "gfx/smedalw.spr",20
+  Sprite Load PATH$ + "gfx/gmedalw.spr",21
+  Sprite Load PATH$ + "gfx/cup_medalw.spr",22
+
+
+  ' Constants.
+  Const gap=90      'between columns
+  Const xb=100      'bird start position (constant)
+  Const pgap=80     'gap between top and bottom pipes
+  Const die=16, hit=17, swoosh=18, wing=19  'sfx samples
+  
+  ' Variables.
+  Dim h_beat=50     'speed of the game
+  Dim force=7       'force of the wing
+  Dim yb=100        'bird vertical position
+  Dim v=1           'falling speed due to gravity
+  Dim xnp=320       'new pipe position
+  Dim ynp=40        'new pipe length (default)
+  Dim spr=4         'default bird sprite
+  Dim yy(1)         'pipe height last 2 pipes
+  Dim pn=1          'pipe number to be shifted in right side
+  Dim scores(3)=(5,10,15,16) 'default score list bronze,silver,gold,cup
+  Dim a$, key%, i, state%, tmp%, xx
+  
+  '!dynamic_call nes_a
+  ctrl.init_keys()
+  Dim ctrl$ = ctrl.default_driver$()
+  If ctrl.open_no_error%(ctrl$) <> sys.SUCCESS Then ctrl$ = "ctrl.no_controller"
+
+  read_highscores()
+
+new_game:
+
+  ' Initialise variables.
+  yb = 100 : v = 1 : xnp = 320 : ynp = 40 : spr = 4: yy(0) = 0 : yy(1) = 0 : pn = 1
+  state% = STATE_SHOW_TITLE
 
 
   'load background on to layer N
@@ -47,49 +102,33 @@
   Load Image PATH$ + Choice(Rnd() < 0.5, "gfx/fl_day.bmp", "gfx/fl_night.bmp")
 
 
-  'game variables
-  h_beat=50     'speed of the game
-  force=7       'force of the wing
-
-  'game defines
-  gap=90        'between columns
-  xb=100        'bird start position (constant)
-  yb=100        'bird vertical position
-  v=1           'falling speed due to gravity
-  xnp=320       'new pipe position
-  ynp=40        'new pipe length (default)
-  pgap=80       'gap between top and bottom pites
-  spr=4         'default bird sprite
-  Dim yy(1)     'pipe height last 2 pipes
-  pn=1          'pipe number to be shifted in right side
-  die=16:hit=17:swoosh=18:wing=19   'sfx samples
-  Dim scores(3)=(5,10,15,16) 'default score list bronze,silver,gold,cup
-  Dim medal$(3)=("b","s","g","cup_") 'prefix names for medal graphics
-
-
-  'get old scores from flash
-  Open PATH$ + "score.txt" For input As #1
-  For i=0 To 3:Input #1,a$:scores(i)=Val(a$):Next
-  Close #1
-
-
   'title screen
-  FRAMEBUFFER write l:CLS
+  Play Stop
+  FRAMEBUFFER write l
+  Cls
   Load image PATH$ + "gfx/flappy.bmp",70,50
-  Pause 3000
+  Do While get_input%() : Pause 5 : Loop ' Wait for button release
+  Timer = 0
+  Do While Timer < 3000
+    If get_input%() Then Exit Do
+    Pause 5
+  Loop
+  Do While get_input%() : Pause 5 : Loop ' Wait for button release
 
 
   'create start instructions
   CLS
   Load image PATH$ + "gfx/getready.bmp",70,40
   Load image PATH$ + "gfx/taptap.bmp",136,110
-  Do : Loop While read_input$()=""
+  Do While Not get_input%() : Pause 5 : Loop ' Wait for button press
+  Do While get_input%() : Pause 5 : Loop     ' Wait for button release
   CLS
 
 
   'init for main game loop
+  state% = STATE_PLAY_GAME
   Timer =0
-  Play modfile PATH$ + "sfx/sll3sfx2.mod"
+  Play ModFile PATH$ + "sfx/sll3sfx2.mod"
   FRAMEBUFFER write l
 
 
@@ -108,12 +147,12 @@
     'Text 0,0,Right$("00"+Str$(Timer,3,0),3)
 
     'player input through keyboard, clearing buffer, check loop time
-    k$=""
+    key% = 0
     Do
-      tmp$=read_input$()
-      If tmp$<>"" Then k$=tmp$  'keep last valid key
+      tmp% = get_input%()
+      If tmp% Then key% = tmp%  'keep last valid key
     Loop Until Timer>h_beat
-    Timer =0
+    Timer = 0
 
 
     'determine new bird position and sprite depending player key entry
@@ -121,10 +160,14 @@
     v=v+1                       'falling speed increases
     If v>-2 Then spr=4          'flaps up
     If v>5 Then spr=17:v=5      'to a max of 5
-    If k$=" " Then Play modsample wing,4:spr=5:v=-force  'flap down and you rise
+    Select Case key%
+      Case ctrl.A, ctrl.B, ctrl.UP, ctrl.DOWN, ctrl.LEFT, ctrl.RIGHT
+        Play modsample wing,4:spr=5:v=-force  'flap down and you rise
+    End Select
     If yb+v<0 Or yb+v>196 Then
       If pn<3 Then pn=2
-      you_die
+      you_die()
+      Exit Do
     EndIf
 
 
@@ -141,7 +184,10 @@
     'check collision with pipe (pn-2) that is closest to the bird
     xx=xnp-2*gap
     If xx>76 And xx<=116 And pn>2 Then
-      If yb+v<yy(0)+12 Or yb+v>yy(0)+pgap-12 Then you_die
+      If yb+v<yy(0)+12 Or yb+v>yy(0)+pgap-12 Then
+        you_die()
+        Exit Do
+      EndIf
     EndIf
 
 
@@ -174,10 +220,23 @@
 
   Loop
 
+  Goto new_game
 
-  'keyboard or controller input, can be expanded for controllers
-Function read_input$()
-  read_input$=Inkey$
+  'keyboard or controller input
+Function get_input%(ignore%)
+  Call ctrl$, get_input%
+  If Not get_input% Then keys_cursor_ext(get_input%)
+  If ignore% Then Exit Function
+  Select Case get_input%
+    Case ctrl.START
+      If state% = STATE_PLAY_GAME Then
+        on_quit()
+        get_input% = 0
+      EndIf
+    Case ctrl.HOME, ctrl.SELECT
+      on_quit()
+      get_input% = 0
+  End Select
 End Function
 
 
@@ -210,6 +269,7 @@ End Sub
 
   'end of game sequence
 Sub you_die
+  state% = STATE_LOSE_GAME
   Box xb,yb,16,12,1,RGB(magenta),RGB(magenta) '  'kill old bird
 
   Play modsample hit,4
@@ -218,19 +278,22 @@ Sub you_die
 
   i=rangescores(pn-2) 'check if the score should give a medal
 
-  Load image "gameover.bmp",70,30
-  Load image "score.bmp",80,90
-  writenumber(80+129,90+27,pn-2)          'your score this run
-  writenumber(80+129,90+60,scores(3))     'all time top score for winning the cup
-  if i>=0 then sprite write 18+i,100,120,0  'the medal/cup sprite
+  Load Image PATH$ + "gfx/gameover.bmp",70,30
+  Load Image PATH$ + "gfx/score.bmp",80,90
+  writenumber(80+129,90+27,pn-2)       'your score this run
+  writenumber(80+129,90+60,scores(3))  'all time top score for winning the cup
+  sprite write 19+i,100,120,0          'the medal/cup sprite
 
-  Do : Loop While read_input$()=""
-  Run
+  Do While Not get_input%() : Pause 5 : Loop ' Wait for button press
+  Do While get_input%() : Pause 5 : Loop     ' Wait for button release
+
+  Sprite Hide 6
 End Sub
 
 
   'drop the bird from collision point to the ground
 Sub animate_fall
+  Local l = 0
   Sprite framebuffer L,n,0,0,0,0,320,240,9  'copy L to N to avoid corruption
   CLS Rgb(magenta)                          'clear L
 
@@ -251,14 +314,39 @@ Function rangescores(n)
   For i=0 To 3
     If scores(i)<n Then rangescores=i
   Next
-  if rangescores=3 then scores(3)=n:savescore 'save new high, leave bronze/silver/gold same.
+  if rangescores=3 then scores(3)=n:write_highscores() 'save new high, leave bronze/silver/gold same.
 End Function
 
 
-  'write the new score list to flash
-Sub savescore
-  'save new scores
-  Open "score.txt" For output As #1
-  For i=0 To 3:Print #1,Str$(scores(i)):Next
-  Close #1
+  'get old scores from file
+Sub read_highscores()
+  Local s$(3) Length 32
+  game.highscore_read(s$())
+  Local i%
+  For i% = 0 To 3
+    scores(i%) = Choice(s$(i%) <> "", Val(Field$(s$(i%), 2, ",")), scores(i%))
+  Next
+End Sub
+
+
+  'write the new score list to file
+Sub write_highscores()
+  Local s$(3) Length 32 = ("Bronze", "Silver", "Gold", "Cup")
+  Local i%
+  For i% = 0 To 3
+    s$(i%) = s$(i%) + ", " + Str$(scores(i%))
+  Next
+  game.highscore_write(s$())
+End Sub
+
+
+Sub on_quit()
+  msgbox.beep(1)
+  Const fg% = Rgb(Cerulean), bg% = Rgb(White), frame% = fg%, flags% = msgbox.NO_PAGES
+  Local buttons$(1) Length 3 = ("Yes", "No")
+  Const msg$ = "Quit game?"
+  Const x% = 15, y% = 9, w% = 23, h% = 9, btn% = 1
+  Const answer% = msgbox.show%(x%,y%,w%,h%,msg$,buttons$(),btn%,ctrl$,fg%,bg%,frame%,flags%)
+  If buttons$(answer%) = "Yes" Then game.end()
+  If state% <> STATE_SHOW_TITLE Then Play ModFile PATH$ + "sfx/sll3sfx2.mod"
 End Sub
