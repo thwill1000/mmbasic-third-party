@@ -6,36 +6,47 @@ Option Base 0
 Option Default Float
 Option Explicit On
 
-Const VERSION = 101301 ' 1.1.1
+Const VERSION = 101302 ' 1.1.2
 
-'!define NO_INCLUDE_GUARDS
+If Mm.Device$ = "MMB4L" Then
+  Option Simulate "Game*Mite"
+  Option CodePage CMM2
+EndIf
+
 #Include "../splib/system.inc"
 #Include "../splib/ctrl.inc"
-#Include "../splib/gamemite.inc"
+#Include "../splib/game.inc"
+#Include "../splib/string.inc"
+#Include "../splib/msgbox.inc"
 
-sys.override_break("break_cb")
+sys.override_break("on_break")
+
+game.init_window("Circle-One", VERSION)
 
 Const CURRENT_PATH$ = Choice(Mm.Info(Path) <> "NONE", Mm.Info(Path), Cwd$)
 Const CB = Rgb(Blue), CC= Rgb(Cyan),   CG = Rgb(Green)
 Const CR = Rgb(Red),  CW = Rgb(White), CY = Rgb(Yellow)
 Const VERSION_STRING$ = "Game*Mite Version " + sys.format_version$(VERSION)
+Const STATE_SHOW_TITLE = 0, STATE_PLAY_GAME = 1
 
 ' Index 0 is food, 1 is player 1, 2 is player 2
 Dim c(2) ' Colour
 Dim dx(2), dy(2) ' Direction of movement in x & y directions
 Dim pause_flag%  ' = 1 then pause the game
-Dim p(2) ' Player input; bitset of ctrl.DOWN|LEFT|RIGHT|UP
+Dim p(2) As Integer ' Player input; bitset of ctrl.DOWN|LEFT|RIGHT|UP
 Dim r(2) ' Radius
 Dim s(2) ' Speed
 Dim score(2)
 Dim t%
 Dim v(2) ' > 0 if player moving
 Dim x(2), y(2) ' Coordinates
-
-ctrl.init_keys()
+Dim state%
 '!dynamic_call ctrl.gamemite
-Dim ctrl$ = "ctrl.gamemite"
-Call ctrl$, ctrl.OPEN
+
+' Initialise input
+ctrl.init_keys()
+Dim ctrl$ = ctrl.default_driver$()
+If ctrl.open_no_error%(ctrl$) <> sys.SUCCESS Then ctrl$ = "ctrl.no_controller"
 
 ' Game music
 Play ModFile CURRENT_PATH$ + "circle.mod"
@@ -43,12 +54,15 @@ Play ModFile CURRENT_PATH$ + "circle.mod"
 ' The game uses the FrameBuffer to prevent screen drawing artifacts
 FrameBuffer Create
 FrameBuffer Write F
+Font 8
 
 Do
+  state% = STATE_SHOW_TITLE
   show_intro()
+  state% = STATE_PLAY_GAME
   score(1) = 0 : score(2) = 0
   start_round()
-  Do
+  Do While state% <> STATE_SHOW_TITLE
     t% = Timer + 100
     If Not c(0) Then create_food()
     If c(0) Then draw_food(c(0))
@@ -58,19 +72,37 @@ Do
     move_players()
     handle_collisions()
     draw_players()
-    If Not handle_winning%() Then Exit Do
+    handle_winning()
     draw_score()
-    If pause_flag% Then
-      If Not handle_pause%() Then Exit Do
-    EndIf
+    If pause_flag% Then handle_pause()
     FrameBuffer Copy F, N, B
     Do While Timer < t% : Loop
   Loop
 Loop
 Error "Unexpected program end"
 
-'!dynamic_call break_cb
-Sub break_cb()
+Sub on_quit()
+  msgbox.beep(1)
+  Const fg% = Rgb(White), bg% = Rgb(Black), frame% = Rgb(Rust), flags% = &h0
+  If state% = STATE_SHOW_TITLE Then
+    Local buttons$(1) Length 3 = ("Yes", "No")
+    Const msg$ = "Quit game?"
+    Const x% = 9, y% = 10, w% = 22, h% = 9, btn% = 1
+  Else
+    Local buttons$(2) Length 7 = ("Restart", "Quit", "Cancel")
+    Const msg$ = "Restart or Quit?"
+    Const x% = 2, y% = 10, w% = 36, h% = 9, btn% = 2
+  EndIf
+  Const answer% = msgbox.show%(x%,y%,w%,h%,msg$,buttons$(),btn%,ctrl$,fg%,bg%,frame%,flags%)
+  Select Case buttons$(answer%)
+    Case "Quit", "Yes" : end_program()
+    Case "Restart" : state% = STATE_SHOW_TITLE
+  End Select
+  Play ModFile CURRENT_PATH$ + "circle.mod"
+End Sub
+
+'!dynamic_call on_break
+Sub on_break()
   end_program(1)
 End Sub
 
@@ -81,31 +113,12 @@ Sub end_program(break%)
     FrameBuffer Copy F, N, B
     Pause 2000
   EndIf
-'!if defined(GAMEMITE)
-  '!uncomment_if true
-  ' gamemite.end(break%)
-  '!endif
-'!else
-  If sys.is_platform%("gamemite") Then
-    gamemite.end(break%)
-  Else
-    Page Write 0
-    Colour CW, 0
-    Cls
-    sys.restore_break()
-    ctrl.term_keys()
-    On Error Ignore
-    Call ctrl$, ctrl.CLOSE
-    On Error Abort
-    End
-  EndIf
-'!endif
+  game.end(break%)
 End Sub
 
 Sub show_intro()
   Cls
-  Const k% = display_text%("intro_data", Mm.VRes / 2 - 80, 0, 1000)
-  If k% = ctrl.SELECT Then end_program()
+  Const key% = display_text%("intro_data", Mm.VRes / 2 - 80, 1000)
 End Sub
 
 intro_data:
@@ -126,14 +139,12 @@ Data "", 0, 0, 0
 '
 ' @param   label$     Label for the DATA to read
 ' @param   top%       Initial y-coordinate
-' @param   key_mask%  Key/button mask for exiting
 ' @param   msec%      Pause duration between showing each line of text
 ' @return  the controller code for the key/button pressed
-Function display_text%(label$, top%, key_mask%, msec%)
-  Const _key_mask% = Choice(key_mask%, key_mask%, ctrl.SELECT Or ctrl.START)
+Function display_text%(label$, top%, msec%)
   Local col%, dy%, h%, s$, sz%, t%, w%, y% = top%
-  Local k% = Not msec%, k_old%
-  Call ctrl$, k_old%
+  Local k% = Not msec%
+  Local k_old% = get_input%()
   Restore label$
   Do
     Read s$, sz%, col%, dy%
@@ -148,17 +159,27 @@ Function display_text%(label$, top%, key_mask%, msec%)
     FrameBuffer Copy F, N
     t% = Timer + msec%
     Do While (Timer < t%) And (Not k%)
-      Call ctrl$, k%
+      k% = get_input%()
       ' Require the user to have released key or be pressing different key.
       If k% = k_old% Then k% = 0 Else k_old% = k%
     Loop
   Loop
   FrameBuffer Wait
   FrameBuffer Copy F, N
-  ctrl.wait_until_idle(ctrl$)
-  Do : Call ctrl$, k% : Loop Until k% And _key_mask%
-  ctrl.wait_until_idle(ctrl$)
-  display_text% = k%
+  Do While get_input%(1) : Loop
+  Do While Not(get_input%() And (ctrl.START Or ctrl.A)) : Loop
+  Do While get_input%(1) : Loop
+End Function
+
+Function get_input%(ignore%)
+  Call ctrl$, get_input%
+  If Not get_input% Then keys_cursor_ext(get_input%)
+  If ignore% Then Exit Function
+  Select Case get_input%
+    Case ctrl.HOME, ctrl.SELECT
+      on_quit()
+      get_input% = 0
+  End Select
 End Function
 
 Sub start_round()
@@ -188,8 +209,8 @@ Sub draw_food(c%)
 End Sub
 
 Sub ctrl_player()
-  Local key%, p_old% = p(1)
-  Call ctrl$, key%
+  Const p_old% = p(1)
+  Const key% = get_input%()
   p(1) = key% And (ctrl.DOWN Or ctrl.LEFT Or ctrl.RIGHT Or ctrl.UP)
   If key% And ctrl.A Then s(1) = 12 ' Turbo run, tweak for fun
   If key% And ctrl.START Then pause_flag% = 1
@@ -297,24 +318,18 @@ Sub draw_circle(x%, y%, r%, col%)
   Circle x%, y%, r%, , , col%, col%
 End Sub
 
-' @return  0  to return to the intro screen
-Function handle_winning%()
-  handle_winning% = 1
+Sub handle_winning()
   Local win%
   If r(1) > Mm.VRes / 2 Then win% = 1
   If (Not win%) And (r(2) > Mm.VRes / 2) Then win% = 2
-  If Not win% Then Exit Function
+  If Not win% Then Exit Sub
 
   Inc score(win%)
   draw_score()
   Const label$ = "win_" + Str$(win%) + "_data"
   Const k% = display_text%(label$, Mm.VRes / 2 - 30)
-  If k% = ctrl.SELECT Then
-    handle_winning% = 0
-  Else
-    start_round()
-  EndIf
-End Function
+  start_round()
+End Sub
 
 win_1_data:
 Data "Blue Wins", 2, CY, 17
@@ -335,17 +350,11 @@ Sub draw_score()
   Text Mm.HRes, 0, Str$(score(2)), "RT", 8, 2, CR
 End Sub
 
-' @return  0  to return to the intro screen
-Function handle_pause%()
-  handle_pause% = 1
+Sub handle_pause()
   pause_flag% = 0
-  Const k% = display_text%("pause_data", Mm.VRes / 2 - 30)
-  If k% = ctrl.SELECT Then
-    handle_pause% = 0
-  Else
-    Cls
-  EndIf
-End Function
+  Const key% = display_text%("pause_data", Mm.VRes / 2 - 30)
+  Cls
+End Sub
 
 pause_data:
 Data "PAUSED", 2, CY, 17
