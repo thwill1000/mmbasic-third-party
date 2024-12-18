@@ -1,46 +1,53 @@
 '===========================================
 '              3D Monster Maze
 '===========================================
-' (c)1981 New Generation Software Ltd,
+' (c) 1981 New Generation Software Ltd,
 '        written by Malcolm Evans.
 '===========================================
 '
-'       PicoMite Version
-'       by Martin Herhaus, April 2024
-'       V1.0 Multi System Version
-'       For PicoMite VGA,Game*Mite and MMB4Windows
+' v1.0.0  Ported to PicoMiteVGA, Game*Mite
+'         and MMBasic for Windows by
+'         Martin Herhaus, April 2024.
+' v1.1.0  Ported to MMB4L and messed about
+'         with by Tom Williams, Dec 2024.
 '===========================================
 
 Option Base 0
 Option Default None
 Option Explicit On
 
-Option Break 4 : On Key 3, on_break
+Const VERSION = 101300 ' 1.1.0
 
-Cls
+'!if defined(PICOMITEVGA)
+  '!replace { Option Simulate "Colour Maximite 2" } { Option Simulate "PicoMiteVGA" }
+  '!dynamic_call nes_a
+'!elif defined(GAMEMITE)
+  '!replace { Option Simulate "Colour Maximite 2" } { Option Simulate "Game*Mite" }
+  '!dynamic_call ctrl.gamemite
+'!endif
 
-' Platform specific setup.
-Dim mite% = 0 ' PicoMiteVGA = 0, Game*Mite = 1, MMB4W = 2, MMB4L = 3
-Dim Integer a
-Select Case Mm.Device$
-  Case "PicoMiteVGA"
-    Mite% = 0
-    Mode 2                                          'setup 320x240
-  Case "PicoMite"
-    Mite% = 1
-    a = ctrl_gamemite(1)                              'setup buttons Game*Mite
-  Case "MMBasic for Windows"
-    Mite% = 2
-    Mode -7
-  Case "MMB4L"
-    mite% = 3
-    Graphics Window 0, -1, -1, 320, 240, 10
-End Select
+If Mm.Device$ = "MMB4L" Then
+  Option Simulate "Colour Maximite 2"
+  Option CodePage CMM2
+EndIf
 
+#Include "../splib/system.inc"
+#Include "../splib/ctrl.inc"
+#Include "../splib/game.inc"
+#Include "../splib/string.inc"
+#Include "../splib/msgbox.inc"
+
+'!dynamic_call game.on_break
+sys.override_break("game.on_break")
+
+Const FRAME_DURATION = 120
+Const STATE_SHOW_TITLE = 0, STATE_PLAY_GAME = 1, STATE_WIN_GAME = 2, STATE_LOSE_GAME = 3
+
+Dim a As Integer
 Dim Integer mapSize.x = 17
 Dim Integer mapSize.y = 18
 Dim String screen(25) Length 48, esc = Chr$(27), v_inv = esc + "[7m", v_norm = esc + "[0m"
-Dim String grey$ = Chr$(135) lenght 1
+Dim String grey$ = Chr$(135) Length 1
 Dim String txt(22) Length 64
 Dim d$ = Chr$(223), u$ = Chr$(220), b$ = Chr$(160)
 Dim Integer gameMap(mapSize.y%, mapSize.x%), GAMEFLAGS, Rex.x, Rex.y, Rex.a
@@ -54,13 +61,23 @@ MSG(4) = " FOOTSTEPS APPROACHING" : MSG(5) = " HE IS HUNTING FOR YOU"
 MSG(6) = String$(22, 32)
 Dim Integer wall = 1, none = 0
 Dim Integer status = 0 ' 0 .. 6
-Dim Integer die, direction, f, key, mt, n, o_n, px, py, pp.x, pp.y, rmov, score, tt
+Dim Integer die, direction, f, mt, n, o_n, px, py, pp.x, pp.y, rmov, score, tt
+Dim state%
+Dim next_frame%
+Dim key%
+Dim ctrl$ = ctrl.default_driver$()
+
+If InStr(Mm.Device$, "PicoMiteVGA") Then Mode 2
+game.init_window("3D Monster Maze for MMBasic", VERSION)
+ctrl.init_keys()
+If ctrl.open_no_error%(ctrl$) <> sys.SUCCESS Then ctrl$ = "ctrl.no_controller"
 
 Font 9
 Restore Blocks
 For n = 0 To 15 : Read a : blk$(n) = Chr$(a) : Next
 
 restrt:
+state% = STATE_SHOW_TITLE
 Randomize(Timer)
 generateMap
 score = 0
@@ -79,7 +96,7 @@ o_n = -1 : MT = 0
 '        when the played is moving thereby forcing Rex to take quicker steps.
 GAMEFLAGS = &b00000000
 
-If Mm.CmdLine$ <> "--no-intro" Then intro()
+If Not InStr(Mm.CmdLine$, "--no-intro") Then intro()
 'insert PlayerPosition into Maze
 Nxtrnd:
 pp.x = mapSize.x - 1 : pp.y = mapSize.y - 1 : direction = 3
@@ -87,7 +104,7 @@ pp.x = mapSize.x - 1 : pp.y = mapSize.y - 1 : direction = 3
 Cls
 For f = 0 To 23 : Text 32, 24 + f * 8, String$(32, " ") : Next
 'Print @(430,96)"S C O R E";
-Text 240, 64, "SCORE"
+Text 240, 96, "SCORE"
 
 'Do
 'For k=5 To 0 Step -1
@@ -101,28 +118,28 @@ clr
 '===========================================
 'Main loop
 '===========================================
+state% = STATE_PLAY_GAME
+key% = 0
+status = 6
 Do
-  tt = Timer
+  next_frame% = Timer + FRAME_DURATION
   view
   For f = 0 To 23 : Text 32, 24 + f * 8, screen$(f) : Next
 
   GAMEFLAGS = GAMEFLAGS Or &b00100000 ' set bit 5
-  key = get_input()
-  If key Then
-    Select Case key
-      Case 131 'right
-        Inc direction : direction = direction Mod 4
-        GAMEFLAGS = GAMEFLAGS And &b11011111 ' reset bit 5
-      Case 130
-        Inc direction, -1 : If direction = -1 Then direction = 3
-        GAMEFLAGS = GAMEFLAGS And &b11011111 ' reset bit 5
-      Case 128 'up
-        GAMEFLAGS = GAMEFLAGS Or  &b01000000 ' set bit 6
-        GAMEFLAGS = GAMEFLAGS And &b11011111 ' reset bit 5
-        Move
-        GAMEFLAGS = GAMEFLAGS And &b11011111 ' reset bit 5
-    End Select
-  EndIf
+  Select Case key%
+    Case ctrl.RIGHT
+      Inc direction : direction = direction Mod 4
+      GAMEFLAGS = GAMEFLAGS And &b11011111 ' reset bit 5
+    Case ctrl.LEFT
+      Inc direction, -1 : If direction = -1 Then direction = 3
+      GAMEFLAGS = GAMEFLAGS And &b11011111 ' reset bit 5
+    Case ctrl.UP
+      GAMEFLAGS = GAMEFLAGS Or  &b01000000 ' set bit 6
+      GAMEFLAGS = GAMEFLAGS And &b11011111 ' reset bit 5
+      move_player()
+      GAMEFLAGS = GAMEFLAGS And &b11011111 ' reset bit 5
+  End Select
 
   rmov = GAMEFLAGS And &b00000011
   Inc rmov
@@ -138,12 +155,16 @@ Do
   If gameMap(pp.y, pp.x) = 2 Then die = 0 : Exit
 
   exi$ = Right$(exi$, el - 1) + Left$(exi$, 1)
+
   clear_input()
+  key% = get_input%()
+  Do While Timer < next_frame%
+    key% = key% Or get_input%()
+  Loop
 
-  Pause 250 - (Timer - tt)
-
-  Text 240, 108, Str$(score)
+  Text 240, 96 + Mm.Info(FontHeight), str.centre$(Str$(score), 5)
 Loop
+
 If die = 1 Then
   EndGame
   Goto restrt
@@ -154,6 +175,7 @@ Else
   placeRex
   Goto Nxtrnd
 EndIf
+
 '===========================================
 'Intro related Subs
 '===========================================
@@ -180,40 +202,32 @@ Sub Intro
   Text 32, 208, invert$(" MMBASIC BY MARTIN HERHAUS 2024 ")
 
   ' Show intro text.
-  Restore intro1
-  showtxt()
+  Restore text_intro
+  If showtxt%() = ctrl.START Then Exit Sub
 
   ' Show Ringmaster Bow
   For y = 0 To 12 : Text 32, 24 + y * 8, RM$(21 + y) : Next
 
-  ' Scroll 10 empty Lines
-  clear_input()
-  For y = 1 To 10
-    For f = 0 To 21
-      Text 112, 24 + f * 8, txt(f)
-      txt(f) = txt(f + 1)
-    Next
-    Pause Choice(get_input(), 10, 500)
-    txt(21) = String$(22, " ")
-  Next
+  ' Scroll some empty Lines
+  Restore text_empty
+  If showtxt%() = ctrl.START Then Exit Sub
 
   'Show Ringmaster
   For y = 0 To 20 : Text 32, 24 + y * 8, RM$(y) : Next
 
   clear_input()
   Do
-    key = get_input()
-  Loop Until key
-  Select Case key
-    Case 13, 82
-      Restore InStr
-    Case 32, 67
-      Restore Mists
-    Case 27
-      on_break
-  End Select
+    Select Case get_input%()
+      Case ctrl.B
+        Restore text_instructions
+        Exit Do
+      Case ctrl.A, ctrl.START
+        Restore text_mist
+        Exit Do
+    End Select
+  Loop
 
-  showtxt()
+  If showtxt%() = ctrl.START Then Exit Sub
 
   ' Show Ringmaster Bow
   For y = 0 To 12 : Text 32, 24 + y * 8, RM$(21 + y) : Next
@@ -234,7 +248,7 @@ Function invert$(in$)
 End Function
 
 ' Shows scrolling text read from current DATA pointer.
-Sub showtxt()
+Function showtxt%()
   Local a$, b1$
   Local Integer f
 
@@ -243,7 +257,8 @@ Sub showtxt()
   Do
     Read b1$
     a$ = ""
-    If b1$ = "@" Then Exit Sub
+    If b1$ = "@" Then Exit Function
+    b1$ = Left$(replace_text$(b1$), 22)
     For f = 1 To Len(b1$)
       If Asc(Mid$(b1$, f, 1)) < 95 Then
         a$ = a$ + Mid$(b1$, f, 1)
@@ -251,52 +266,82 @@ Sub showtxt()
         a$ = a$ + Chr$(Asc(Mid$(b1$, f, 1)) + 96)
       EndIf
     Next
+
     For f = 0 To 20 : txt(f) = txt(f + 1) : Next
     txt(21) = a$
-    For f = 0 To 21 : Text 112, 24 + f * 8, txt(f) : Next
-    Pause Choice(get_input(), 10, 500)
+    showtxt% = update_txt_display%()
+    If showtxt% = ctrl.START Then Exit Do
+
     For f = 0 To 20 : txt(f) = txt(f + 1) : Next
     txt(21) = String$(22, " ")
-    For f = 0 To 21 : Text 112, 24 + f * 8, txt(f) : Next
-    Pause Choice(get_input(), 10, 500)
+    showtxt% = update_txt_display%()
+    If showtxt% = ctrl.START Then Exit Do
+  Loop
+End Function
+
+Function replace_text$(s$)
+  replace_text$ = s$
+  If ctrl$ <> "ctrl.no_controller" Then
+    replace_text$ = str.replace$(s$, "'i'", "b")
+    replace_text$ = str.replace$(replace_text$, "space", "start")
+    replace_text$ = str.replace$(replace_text$, "esc", "select")
+  EndIf
+  replace_text$ = str.replace$(replace_text$, "score", Str$(score))
+End Function
+
+Function update_txt_display%()
+  Local f%
+  For f% = 0 To 21 : Text 112, 24 + f% * 8, txt(f%) : Next
+  Const t% = Timer + 500
+  Do While Timer < t%
+    Pause 50
+    Select Case get_input%()
+      Case 0
+        ' Do nothing
+      Case ctrl.A, ctrl.START
+        update_txt_display% = ctrl.START
+        Exit Do
+      Case Else
+        Exit Do
+    End Select
   Loop
 End Function
 
 Sub EndGame
+  state% = STATE_LOSE_GAME
+  Rex.a = 0
+  shRex(0)
+  show_end_text("text_lose")
+End Sub
+
+Sub winGame
+  state% = STATE_WIN_GAME
+  Inc score, 200
+  show_end_text("text_win")
+End Sub
+
+Sub show_end_text(label$)
   Local mes$
   Local Integer w
-  Pause 1000
-    'For f=0 To 23:Text 32,24+f*8,String$(28,32):Next
-  Rex.a = 0 : shRex 0
+  Pause 500
+  show_message(6)
   For f = 0 To 23
     screen$(f) = Left$(screen$(f), 23) + "  "
     Text 32, 24 + f * 8, screen$(f)
   Next
-  Restore END2
-  For f = 7 To 20 Step 2
+  Restore label$
+  f = 7
+  Do
     Read w, Mes$
+    If w = -1 Then Exit Do
+    mes$ = replace_text$(mes$)
     mes$ = ZXFNT$(mes$)
-    Text 40 + 8 * w, 24 + f * 8, Mes$
-  Next
-  clear_input()
-  Do
-    key = get_input()
-    If key = 27 Then on_break
-    If key = 13 Or key = 10 Or key = 67 Then Exit Do
+    Text 40 + 8 * w, 24 + f * 8, mes$
+    Inc f, 2
   Loop
-End Sub
-
-Sub winGame
-  Local mes$
-  Pause 1000
-  Inc score, 200
-  For f = 0 To 23 : Text 32, 24 + f * 8, screen$(f) : Next
-  Restore END1
-  For f = 6 To 11 : Read Mes$ : Text 48, 24 + f * 12, Mes$ : Next
   clear_input()
   Do
-    key = get_input()
-    If key = 13 Or key = 67 Or key = 10 Then Exit Do
+    If get_input%() And (ctrl.A Or ctrl.START) Then Exit Do
   Loop
 End Sub
 
@@ -316,7 +361,7 @@ End Function
 'Player related Subs
 '===========================================
 
-Sub Move
+Sub move_player()
 'move Player position one step forward
   Select Case direction
     Case 0
@@ -522,7 +567,7 @@ Sub Move_Rex
   pd = Sqr((pdx * pdx) + (pdy * pdy))
 
   ' For debugging, distance of T-Rex from player.
-  Text 240, 128, Str$(pd) + " "
+  ' Text 240, 128, Str$(pd) + " "
 
  '-----------------------------------
  'choose the appropriate status message
@@ -649,27 +694,25 @@ Sub shexit(ex, ey, ew, eh)
   exi$ = Right$(exi$, el - 1) + Chr$(c)
 End Sub
 
-Sub on_break
-'Option display 26,80:Print @(0,0);v_norm;
-  Option Break 3
-  If mite% = 1 Then
-    For f = 0 To 23 : Text 32, 24 + f * 8, String$(32, 32) : Next
-    Text 152, 96, "BYE"
-  ElseIf mite% = 3 Then
-    showmaze
-  Else
-    Mode 1 : Font 1
-    showmaze
-  End If
-  End
+Sub on_quit()
+  msgbox.beep(1)
+  Font 7
+  Const fg% = Rgb(White), bg% = Rgb(Black), frame% = Rgb(Rust), flags% = msgbox.NO_PAGES
+  Local buttons$(1) Length 3 = ("Yes", "No")
+  Const msg$ = "Quit game?"
+  Const x% = 15, y% = 9, w% = 23, h% = 9, btn% = 1
+  Const answer% = msgbox.show%(x%,y%,w%,h%,msg$,buttons$(),btn%,ctrl$,fg%,bg%,frame%,flags%)
+  If buttons$(answer%) = "Yes" Then game.end()
+  Font 9
 End Sub
 
-Sub showMaze
-  Local Integer x, y
-  For y = 0 To mapSize.y
-    For x = 0 To mapSize.x : Print Chr$(32 + gameMap(y, x)); Chr$(32 + gameMap(y, x)); : Next
-    Print : Next
-End Sub
+' Sub showMaze
+'   Local Integer x, y
+'   For y = 0 To mapSize.y
+'     For x = 0 To mapSize.x : Print Chr$(32 + gameMap(y, x)); Chr$(32 + gameMap(y, x)); : Next
+'     Print
+'   Next
+' End Sub
 
 '===========================================
 ' Map Creation Subs
@@ -759,51 +802,21 @@ Sub placeRex
   Rex.x = rnd.x : Rex.y = rnd.y
 End Sub
 
-' Game*Mite controls copied from PETSCII
-Function ctrl_gamemite(initi)
-
-  If Not initi Then
-
-    'read the buttons and convert to ASCII codes equal the keyboard controls
-    Local bits = INV Port(GP8, 8) And &hFF, s%
-
-    Select Case bits
-      Case 0    : s% = 0    'no key
-      Case &h01 : s% = 32   'down (pickup/drop)
-      Case &h02 : s% = 130  'left
-      Case &h04 : s% = 128  'up (pickup/drop)
-      Case &h08 : s% = 131  'right
-      Case &h10 : s% = 27   'Select = ESC (stop)
-      Case &h20 : s% = 67   'Start = C (counters)
-      Case &h40 : s% = 32   'B = SPACE (pickup/drop)
-      Case &h80 : s% = 82   'A = R(edo)
-    End Select
-    ctrl_gamemite = s%
-    Exit Function
-
-  Else
-    ' Initialise GP8-GP15 as digital inputs with PullUp resistors
-    Local i
-    For i = 8 To 15
-      SetPin Mm.Info(PinNo "GP" + Str$(i)), Din, PullUp
-    Next
-  EndIf
-
-End Function
-
-Function get_input() As Integer
-  Const k$ = Inkey$
-  If k$ = "" Then
-    If mite% = 1 Then
-      get_input = ctrl_gamemite(0)
-      Exit Function
-    EndIf
-  EndIf
-  get_input = Asc(k$)
+Function get_input%(ignore%)
+  Call ctrl$, get_input%
+  If Not get_input% Then keys_cursor_ext(get_input%)
+  If Not get_input% Then If ctrl.keydown%(105) Then get_input% = ctrl.B ' i = Instructions
+  If ignore% Then Exit Function
+  Select Case get_input%
+    Case ctrl.START
+      If state% = STATE_PLAY_GAME Then on_quit()
+    Case ctrl.HOME, ctrl.SELECT
+      on_quit()
+  End Select
 End Function
 
 Sub clear_input()
-  Do While get_input() : Loop
+  Do While get_input%(1) : Pause 5 : Loop
 End Sub
 
 '-------------------------------------
@@ -990,41 +1003,45 @@ Data "844984202020932094A0"
 Data "84498420209680208DA0"
 Data "8496858C96809690A0A0"
 Data "84492A2A95928081A0A0"
-introtext:
-Data "ANYONE THERE?"
-Data "WELL PRESS SOMETHING..."
-intro1:
+
+text_intro:
 ' --------------------------
 ' Introduction Text Messages
 ' --------------------------
 
-Data "   ROLL UP,ROLL UP,   ", " SEE THE AMAZING      ", " TYRANNOSAURUS REX    "
+Data "   ROLL UP, ROLL UP,  ", " SEE THE AMAZING      ", " TYRANNOSAURUS REX    "
 Data " KING OF THE DINOSAURS", " IN HIS LAIR.         ", " PERFECTLY PRESERVED  "
-Data " IN SILICON SINCE     ", " PREHISTORIC TIMES,HE ", " IS BROUGHT TO YOU FOR"
-Data " YOUR ENTERTAINMENT   ", " AND EXHILARATION.    ", "   IF YOU DARE TO     "
-Data " ENTER HIS LAIR,YOU DO", " SO AT YOUR OWN RISK. ", " THE MANAGEMENT ACCEPT"
-Data " NO RESPONSIBILITY FOR", " THE HEALTH AND SAFETY", " OF THE ADVENTURER WHO"
-Data " ENTERS HIS REALM.THE ", " MANAGEMENT ADVISE    ", " THAT THIS IS NOT A   "
-Data " GAME FOR THOSE OF A  ", " NERVIOUS DISPOSITION.", "   IF YOU ARE IN ANY  "
-Data " DOUBT,THEN PRESS esc ", " IF INSTRUCTIONS ARE  ", " NEEDED TO PROCEEED,  "
-Data " THEN PRESS    enter  ", " OTHERWISE PRESS space", "@"
-instr:
+Data " IN SILICON SINCE     ", " PREHISTORIC TIMES,   ", " HE IS BROUGHT TO     "
+Data " YOU FOR YOUR         ", " ENTERTAINMENT AND    ", " EXHILARATION.        "
+Data "   IF YOU DARE TO     ", " ENTER HIS LAIR, YOU  ", " DO SO AT YOUR OWN    "
+Data " RISK. THE MANAGEMENT ", " ACCEPT NO            ", " RESPONSIBILITY FOR   "
+Data " THE HEALTH AND SAFETY", " OF THE ADVENTURER WHO", " ENTERS HIS REALM.    "
+Data " THE MANAGEMENT ADVISE", " THAT THIS IS NOT A   ", " GAME FOR THOSE OF A  "
+Data " NERVOUS DISPOSITION. ", "   IF YOU ARE IN ANY  ", " DOUBT THEN PRESS     "
+Data " esc, IF              ", " INSTRUCTIONS ARE     ", " NEEDED TO PROCEED    "
+Data " THEN PRESS 'i'       ", " OTHERWISE PRESS      ", " space                ", "@"
+
+text_empty:
+Data "                      ", "                      ", "                      ", "@"
+
+text_instructions:
 ' ----------------------
 ' Controls Text Messages
 ' ----------------------
 
-Data "THE CURSOR CONTROLS  ", " YOU REQUIRE ARE:-    ", "  LEFT TO TURN LEFT   "
+Data " THE CURSOR CONTROLS ", " YOU REQUIRE ARE:-    ", "  LEFT TO TURN LEFT   "
 Data "  UP TO MOVE FORWARD  ", "  RIGHT TO TURN RIGHT ", " FURTHER INFORMATION  "
 Data " IS PROVIDED DURING   ", " THE ENCOUNTER.       ", "   FOR EACH MOVE      "
 Data " SCORING IS AS FOLLOWS", "   5 PTS-WHILE HE IS  ", "         TRACKING YOU."
 Data " 200 PTS-IF YOU ESCAPE", "         HIS LAIR.    ", "   SINCE REX IS ALWAYS"
-Data " TRYING TO MOVE       ", " TOWARDS HIS PREY,A   ", " SKILFUL ADVENTURER   "
+Data " TRYING TO MOVE       ", " TOWARDS HIS PREY, A  ", " SKILFUL ADVENTURER   "
 Data " CAN CONTROL THE      ", " MONSTERS MOVEMENTS TO", " IMPROVE HIS SCORE.   "
-Data " THE ESCAPE ROUTE,    ", " WHICH IS AT THE END  ", " OF A CUL-DE-SAC,IS   "
+Data " THE ESCAPE ROUTE,    ", " WHICH IS AT THE END  ", " OF A CUL-DE-SAC, IS  "
 Data " VISIBLE UP TO 5 MOVES", " AWAY.                ", "   THE GAME ENDS WHEN "
-Data " HE CATCHES YOU.IF YOU", " ESCAPE A NEW MAZE IS ", " GENERATED AND YOUR   "
-Data " PREVIOUS SCORE       ", " CARRIED FORWARD.     ", "                      "
-Mists:
+Data " HE CATCHES YOU.      ", " IF YOU ESCAPE A NEW  ", " MAZE IS GENERATED AND"
+Data " YOUR PREVIOUS SCORE  ", " CARRIED FORWARD.     ", "                      "
+
+text_mist:
 ' ----------------------------
 ' 'Mist of Time' Text Messages
 ' ----------------------------
@@ -1032,21 +1049,23 @@ Data "   THE MISTS OF TIME  ", " WILL PASS OVER YOU   ", " FOR SOME SECONDS     
 Data " WHILE TRANSPORTING   ", " YOU TO THE LAIR OF   ", " TYRANNOSAURUS REX.   "
 Data "   BEST OF LUCK.....  ", "", "", "", "", "@"
 
-END1:
-Data "YOU HAVE ELUDED HIM AND"
-Data "SCORED POINTS."
-Data "REX IS VERY ANGRY."
-Data "YOU'LL NEED MORE"
-Data "LUCK THIS TIME."
+text_win:
+Data 0, "YOU HAVE ELUDED HIM AND"
+Data 0, "SCORED score POINTS."
+Data 0, "REX IS VERY ANGRY."
+Data 0, "YOU'LL NEED MORE"
+Data 0, "LUCK THIS TIME."
+Data -1, ""
 
-END2:
-Data 0, "YOU HAVE BEEN "
-Data 0, "POSTHUMOUSLY AWARDED     "
-Data 0, " POINTS AND SENTENCED    "
+text_lose:
+Data 0, "YOU HAVE BEEN"
+Data 0, "POSTHUMOUSLY AWARDED score"
+Data 0, "POINTS AND SENTENCED"
 Data 0, "TO ROAM THE MAZE FOREVER."
 Data 4, "IF YOU WISH TO APPEAL"
 Data 8, "PRESS esc, ELSE  "
-Data 13, "PRESS enter."
+Data 13, "PRESS space."
+Data -1, ""
 '
 ' font_ZX2
 ' Font type    : Full (224 Characters)
